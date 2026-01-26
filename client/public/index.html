@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <link rel="dns-prefetch" href="https://api.maxbeitler.com" />
+    <link rel="preconnect" href="https://api.maxbeitler.com" crossorigin />
+    <meta name="description" content="Opportunity Solutions Tree Management" />
+    <title>Opportunity Solutions Tree</title>
+    <!-- Runtime configuration for production builds -->
+    <!-- This allows setting environment variables at runtime -->
+    <script>
+      // Configuration can be set here for production builds
+      // Or injected by server-side code
+      (function() {
+        // Check if config is already set
+        if (!window.__ENV__) {
+          window.__ENV__ = {};
+        }
+        
+        // Try to read from meta tags (server can inject these)
+        const urlMeta = document.querySelector('meta[name="supabase-url"]');
+        const keyMeta = document.querySelector('meta[name="supabase-key"]');
+        
+        if (urlMeta) {
+          window.__ENV__.REACT_APP_SUPABASE_URL = urlMeta.getAttribute('content');
+        }
+        if (keyMeta) {
+          window.__ENV__.REACT_APP_SUPABASE_ANON_KEY = keyMeta.getAttribute('content');
+        }
+        
+        // For development, these will be set by react-scripts from .env
+        // For production, you can uncomment and set these values:
+        // window.__ENV__.REACT_APP_SUPABASE_URL = 'http://your-supabase-url:8000';
+        // window.__ENV__.REACT_APP_SUPABASE_ANON_KEY = 'your-anon-key-here';
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
+
+
+
+
+
+

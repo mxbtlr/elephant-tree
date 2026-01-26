@@ -1,0 +1,24 @@
+{
+  "name": "opportunity-solutions-tree",
+  "version": "1.0.0",
+  "description": "WebApp for managing Opportunity Solutions Tree",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm start",
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
+    "build": "cd client && npm run build",
+    "test-supabase": "node scripts/test-supabase-connection.js"
+  },
+  "keywords": [
+    "ost",
+    "opportunity-solutions-tree"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.90.1",
+    "concurrently": "^8.2.2"
+  }
+}

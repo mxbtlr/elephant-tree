@@ -1,0 +1,23 @@
+.confidence-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 2px 6px;
+  text-transform: uppercase;
+}
+
+.confidence-low {
+  background: rgba(148, 163, 184, 0.25);
+  color: #64748b;
+}
+
+.confidence-medium {
+  background: rgba(245, 158, 11, 0.25);
+  color: #b45309;
+}
+
+.confidence-high {
+  background: rgba(16, 185, 129, 0.2);
+  color: #047857;
+}

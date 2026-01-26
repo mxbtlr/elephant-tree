@@ -1,0 +1,122 @@
+.tree-mode-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tree-mode-view .team-section {
+  background: transparent;
+  padding: 0;
+}
+
+.tree-mode-view .team-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tree-mode-view .team-header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.tree-mode-view .outcome-count {
+  color: var(--treeflow-text-muted);
+  font-size: 12px;
+}
+
+.tree-mode-view .empty-state.compact {
+  padding: 24px;
+  background: var(--treeflow-card);
+  border-radius: 12px;
+  border: 1px solid var(--treeflow-border-light);
+}
+
+.overflow-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+
+.overflow-modal {
+  width: 360px;
+  background: var(--treeflow-card);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--treeflow-shadow-hover);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.overflow-modal-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  align-items: center;
+}
+
+.overflow-modal-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.overflow-modal-header button {
+  border: none;
+  background: #f7f7f7;
+  color: var(--treeflow-text-light);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.overflow-search {
+  border: 1px solid var(--treeflow-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.overflow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.overflow-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--treeflow-border-light);
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.overflow-item:hover {
+  border-color: var(--treeflow-primary-light);
+  background: #fff;
+}
+
+.overflow-item-type {
+  color: var(--treeflow-text-muted);
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.overflow-item-title {
+  flex: 1;
+  text-align: left;
+}

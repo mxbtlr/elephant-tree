@@ -1,0 +1,338 @@
+{
+  "outcomes": [
+    {
+      "id": "28e90194-cde6-44f0-982b-866ee61a3167",
+      "title": "Increase qualified prospection meetings with engineering decision-makers",
+      "description": "",
+      "owner": "Max",
+      "comments": [],
+      "opportunities": [
+        {
+          "id": "b8db8683-0b61-460b-98bc-c3dd0230bc23",
+          "title": "Engineering leaders are unaware when RCE can help them",
+          "description": "",
+          "owner": "Max",
+          "comments": [],
+          "solutions": [
+            {
+              "id": "3babef60-aba4-4092-a0ff-c23ca0c28c03",
+              "title": "Cold Calling (targeted, CTO-only)",
+              "description": "",
+              "owner": "Max",
+              "comments": [],
+              "tests": [],
+              "createdAt": "2025-12-23T09:36:42.218Z",
+              "updatedAt": "2025-12-23T09:36:42.218Z"
+            },
+            {
+              "id": "c40eeec9-c0b5-4f6b-b08e-02b483f6488d",
+              "title": "Trigger-based LinkedIn content",
+              "description": "",
+              "owner": "Max",
+              "comments": [],
+              "tests": [],
+              "createdAt": "2025-12-23T09:36:54.288Z",
+              "updatedAt": "2025-12-23T09:36:54.288Z"
+            },
+            {
+              "id": "036104f7-2598-4f65-bfcd-eee9d4ba6cc7",
+              "title": "Warm intros via partner network",
+              "description": "",
+              "owner": "Max",
+              "comments": [],
+              "tests": [],
+              "createdAt": "2025-12-23T09:37:03.619Z",
+              "updatedAt": "2025-12-23T09:37:03.619Z"
+            },
+            {
+              "id": "1ab8f5dc-2a5b-4027-8b24-c492ae49cb72",
+              "title": "Diagnostic Workshops as entry point",
+              "description": "",
+              "owner": "Max",
+              "comments": [],
+              "tests": [],
+              "createdAt": "2025-12-23T09:37:15.551Z",
+              "updatedAt": "2025-12-23T09:37:15.551Z"
+            }
+          ],
+          "createdAt": "2025-12-23T09:26:22.047Z",
+          "updatedAt": "2025-12-23T10:48:44.030Z",
+          "opportunities": []
+        },
+        {
+          "id": "042b4771-c777-440d-8fe2-cdfb0279e4a5",
+          "title": "RCE’s value is not concrete enough to trigger a first conversation",
+          "description": "",
+          "owner": "Max",
+          "comments": [],
+          "solutions": [
+            {
+              "id": "99936923-32be-44bb-938c-d6b1a805048e",
+              "title": "Concrete \"When to call RCE\" visuals",
+              "description": "",
+              "owner": "Max",
+              "comments": [],
+              "tests": [],
+              "createdAt": "2025-12-23T09:37:37.194Z",
+              "updatedAt": "2025-12-23T09:37:37.194Z"
+            },
+            {
+              "id": "dd654735-b9c5-4aea-8282-1c6b3da8800f",
+              "title": "Case-based narratives (cost-down, validation delay)",
+              "description": "",
+              "owner": "Max",
+              "comments": [],
+              "tests": [],
+              "createdAt": "2025-12-23T09:37:55.754Z",
+              "updatedAt": "2025-12-23T09:37:55.754Z"
+            },
+            {
+              "id": "e0ec74e6-de1b-478d-b6b5-01424300825c",
+              "title": "Diagnostic Sprint offer",
+              "description": "",
+              "owner": "Max",
+              "comments": [],
+              "tests": [],
+              "createdAt": "2025-12-23T09:38:04.509Z",
+              "updatedAt": "2025-12-23T09:38:04.509Z"
+            }
+          ],
+          "createdAt": "2025-12-23T09:26:37.052Z",
+          "updatedAt": "2025-12-23T09:38:04.509Z"
+        },
+        {
+          "id": "200904bb-c986-42ca-a3c3-d9ba6245fd23",
+          "title": "RCE is not involved when build-or-buy, redesign, or escalation decisions are made.",
+          "description": "\tEngineering sieht den Wert, Einkauf nicht\n\t•\tManagement versteht Nutzen, aber nicht Umsetzung\n\t•\tUnklare Entscheidungslogik auf Kundenseite",
+          "owner": "Max",
+          "comments": [],
+          "solutions": [],
+          "createdAt": "2025-12-23T09:27:17.900Z",
+          "updatedAt": "2025-12-23T09:41:34.569Z"
+        }
+      ],
+      "createdAt": "2025-12-23T09:22:34.702Z",
+      "updatedAt": "2025-12-23T10:48:44.030Z",
+      "startDate": "2025-12-23",
+      "endDate": "2025-12-26"
+    },
+    {
+      "id": "dd572f6e-92fd-486c-83cb-0e261e9c6f37",
+      "title": "New Test Outcome",
+      "description": "",
+      "owner": "a60d18c9-8323-4e26-9bca-0133434bd657",
+      "visibility": "team",
+      "teamId": "498832fb-6092-4097-883b-34cee676ac00",
+      "createdBy": "a60d18c9-8323-4e26-9bca-0133434bd657",
+      "startDate": null,
+      "endDate": null,
+      "comments": [],
+      "opportunities": [],
+      "createdAt": "2025-12-31T07:27:32.205Z",
+      "updatedAt": "2025-12-31T07:27:32.205Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "5ecb5c7f-dbbd-4293-80a0-9fbed0501fca",
+      "name": "Max",
+      "email": "Max@ost.local",
+      "createdAt": "2025-12-23T08:58:08.674Z"
+    },
+    {
+      "id": "9a82d78b-5da9-4fa4-abdb-409ae199e7b2",
+      "name": "Joe Idiot",
+      "email": "Joe Idiot@ost.local",
+      "createdAt": "2025-12-23T09:09:32.927Z"
+    },
+    {
+      "id": "a60d18c9-8323-4e26-9bca-0133434bd657",
+      "name": "admin",
+      "email": "admin@example.com",
+      "passwordHash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+      "role": "admin",
+      "profile": {
+        "bio": "",
+        "avatar": null,
+        "preferences": {
+          "theme": "light",
+          "notifications": true
+        }
+      },
+      "createdAt": "2025-12-23T11:02:27.885Z",
+      "updatedAt": "2025-12-23T11:02:27.885Z"
+    },
+    {
+      "id": "e2ba70ef-aaf0-4fd0-9cc6-170408b5ab20",
+      "name": "Max",
+      "email": "max@example.com",
+      "passwordHash": "74ba7e49e963635164033eb502fb4d47ad7b0ee662a7e0370a0ea0c66659ef88",
+      "role": "user",
+      "profile": {
+        "bio": "",
+        "avatar": null,
+        "preferences": {
+          "theme": "light",
+          "notifications": true
+        }
+      },
+      "createdAt": "2025-12-31T07:15:06.155Z",
+      "updatedAt": "2025-12-31T07:15:06.155Z"
+    }
+  ],
+  "kpiTemplates": [
+    {
+      "id": "7a2299e1-7f72-4bdc-a667-0a0524fbb308",
+      "name": "Sales Calls Made",
+      "description": "Number of calls made by sales representatives",
+      "unit": "calls",
+      "category": "Sales",
+      "suggestedTarget": "",
+      "createdAt": "2025-12-23T09:21:43.504Z"
+    },
+    {
+      "id": "a5831723-4c89-4bb9-80d9-96bdb66996ff",
+      "name": "LinkedIn Engagement Rate",
+      "description": "LinkedIn post engagement performance by marketing team",
+      "unit": "%",
+      "category": "Marketing",
+      "suggestedTarget": "",
+      "createdAt": "2025-12-23T09:21:43.509Z"
+    },
+    {
+      "id": "2b152adb-c702-49f5-bfa0-643ce378e93c",
+      "name": "LinkedIn Impressions",
+      "description": "Total number of LinkedIn post impressions",
+      "unit": "impressions",
+      "category": "Marketing",
+      "suggestedTarget": "",
+      "createdAt": "2025-12-23T09:21:43.509Z"
+    },
+    {
+      "id": "3b8fbb06-b135-4a04-845e-326bf13130c0",
+      "name": "LinkedIn Clicks",
+      "description": "Number of clicks on LinkedIn posts",
+      "unit": "clicks",
+      "category": "Marketing",
+      "suggestedTarget": "",
+      "createdAt": "2025-12-23T09:21:43.509Z"
+    },
+    {
+      "id": "6eb2299d-e3a8-43d9-a122-43a0777ed549",
+      "name": "Sales Conversion Rate",
+      "description": "Percentage of leads converted to sales",
+      "unit": "%",
+      "category": "Sales",
+      "suggestedTarget": "",
+      "createdAt": "2025-12-23T09:21:43.509Z"
+    },
+    {
+      "id": "5b452f95-6f71-42e1-8863-37c43f1e72d4",
+      "name": "Revenue Generated",
+      "description": "Total revenue from sales activities",
+      "unit": "$",
+      "category": "Sales",
+      "suggestedTarget": "",
+      "createdAt": "2025-12-23T09:21:43.509Z"
+    }
+  ],
+  "interviewNotes": [
+    {
+      "id": "11eac770-bee2-4d25-bfe6-b3d7ab6fbde3",
+      "title": "New Interview Note",
+      "content": "",
+      "author": "Max",
+      "links": [
+        {
+          "id": "812804a2-a6f2-4168-a209-50f685e052cb",
+          "quoteId": "fc2054e9-9414-4ed2-810d-b6e7d7510583",
+          "quoteText": "New note Lorem Impusm",
+          "entityId": "28e90194-cde6-44f0-982b-866ee61a3167",
+          "entityType": "outcome",
+          "createdAt": "2025-12-23T10:09:28.418Z"
+        }
+      ],
+      "createdAt": "2025-12-23T10:09:11.666Z",
+      "updatedAt": "2025-12-23T10:09:28.418Z"
+    }
+  ],
+  "teams": [
+    {
+      "id": "498832fb-6092-4097-883b-34cee676ac00",
+      "name": "Test Team",
+      "description": "",
+      "createdBy": "a60d18c9-8323-4e26-9bca-0133434bd657",
+      "createdAt": "2025-12-31T07:18:48.775Z",
+      "updatedAt": "2025-12-31T07:18:48.775Z"
+    },
+    {
+      "id": "c57a556c-40ad-4041-b03c-455616565694",
+      "name": "team 2",
+      "description": "",
+      "createdBy": "e2ba70ef-aaf0-4fd0-9cc6-170408b5ab20",
+      "createdAt": "2025-12-31T07:19:28.344Z",
+      "updatedAt": "2025-12-31T07:19:28.344Z"
+    }
+  ],
+  "teamMemberships": [
+    {
+      "id": "65c7f18e-d788-41e4-82a4-c46e64ef24a5",
+      "teamId": "498832fb-6092-4097-883b-34cee676ac00",
+      "userId": "a60d18c9-8323-4e26-9bca-0133434bd657",
+      "role": "lead",
+      "joinedAt": "2025-12-31T07:18:48.775Z"
+    },
+    {
+      "id": "7f5c9a2c-f619-4553-85ef-1de696f5d467",
+      "teamId": "c57a556c-40ad-4041-b03c-455616565694",
+      "userId": "e2ba70ef-aaf0-4fd0-9cc6-170408b5ab20",
+      "role": "lead",
+      "joinedAt": "2025-12-31T07:19:28.344Z"
+    },
+    {
+      "id": "ccb3fd67-33d4-4252-bf59-5eecedd88ba2",
+      "teamId": "498832fb-6092-4097-883b-34cee676ac00",
+      "userId": "e2ba70ef-aaf0-4fd0-9cc6-170408b5ab20",
+      "role": "member",
+      "joinedAt": "2025-12-31T07:27:55.632Z"
+    }
+  ],
+  "dataSources": [
+    {
+      "id": "0c385ea9-321c-4c95-b648-8c226dea7b84",
+      "name": "Calling",
+      "type": "calling",
+      "description": "",
+      "config": {},
+      "createdBy": "a60d18c9-8323-4e26-9bca-0133434bd657",
+      "createdAt": "2025-12-31T07:43:02.384Z",
+      "updatedAt": "2025-12-31T07:43:02.384Z",
+      "isActive": true
+    },
+    {
+      "id": "414ee6de-adc9-4b03-80e8-35503363f05b",
+      "name": "Clarity",
+      "type": "microsoft-clarity",
+      "description": "",
+      "config": {},
+      "createdBy": "a60d18c9-8323-4e26-9bca-0133434bd657",
+      "createdAt": "2025-12-31T07:46:04.888Z",
+      "updatedAt": "2025-12-31T07:46:04.888Z",
+      "isActive": true
+    }
+  ],
+  "dataPoints": [
+    {
+      "id": "e2130f57-39bc-4713-8932-bd97fb4c1dc3",
+      "sourceId": "0c385ea9-321c-4c95-b648-8c226dea7b84",
+      "name": "Test Call",
+      "value": 1,
+      "unit": "1",
+      "metadata": {},
+      "linkedTests": [],
+      "createdBy": "a60d18c9-8323-4e26-9bca-0133434bd657",
+      "createdAt": "2025-12-31T07:45:42.231Z",
+      "updatedAt": "2025-12-31T07:45:42.231Z"
+    }
+  ]
+}

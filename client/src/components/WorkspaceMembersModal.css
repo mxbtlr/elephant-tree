@@ -1,0 +1,107 @@
+.workspace-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+}
+
+.workspace-modal {
+  width: 360px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--treeflow-shadow-hover);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workspace-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.workspace-modal-header button {
+  border: none;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.workspace-invite-row {
+  display: flex;
+  gap: 8px;
+}
+
+.workspace-invite-row input {
+  flex: 1;
+  border: 1px solid var(--treeflow-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.workspace-invite-row button {
+  border: 1px solid var(--treeflow-border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.workspace-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--treeflow-text-muted);
+}
+
+.workspace-member-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.workspace-role {
+  font-size: 11px;
+  color: var(--treeflow-text-light);
+  text-transform: uppercase;
+}
+
+.workspace-member-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspace-member-actions button {
+  border: none;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.workspace-pending {
+  display: block;
+  font-size: 11px;
+  color: var(--treeflow-text-muted);
+}
+
+.workspace-empty {
+  font-size: 12px;
+  color: var(--treeflow-text-muted);
+}

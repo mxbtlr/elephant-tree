@@ -1,0 +1,75 @@
+.auth-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 32px;
+  border: 1px solid var(--treeflow-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--treeflow-bg);
+}
+
+.auth-tabs button {
+  flex: 1;
+  padding: 12px 24px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--treeflow-text-light);
+  transition: all 0.2s;
+}
+
+.auth-tabs button:hover {
+  background: var(--treeflow-card);
+  color: var(--treeflow-primary);
+}
+
+.auth-tabs button.active {
+  background: var(--treeflow-primary);
+  color: white;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--treeflow-border);
+  border-radius: 8px;
+  font-size: 15px;
+  margin-bottom: 16px;
+  transition: all 0.2s;
+  background: var(--treeflow-card);
+  color: var(--treeflow-text);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--treeflow-primary);
+  box-shadow: 0 0 0 3px rgba(45, 122, 119, 0.1);
+}
+
+.error-message {
+  color: var(--treeflow-error);
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #ffebee;
+  border-radius: 8px;
+  font-size: 14px;
+  border-left: 3px solid var(--treeflow-error);
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.8s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

@@ -1,0 +1,84 @@
+.list-mode-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.list-mode-view .team-section {
+  background: transparent;
+}
+
+.list-tree {
+  background: var(--treeflow-card);
+  border: 1px solid var(--treeflow-border-light);
+  border-radius: 12px;
+  padding: 6px 0;
+  box-shadow: var(--treeflow-shadow);
+}
+
+.list-node-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.list-node-row:hover {
+  background: #f7f7f7;
+}
+
+.list-node-row.selected {
+  background: #eef6f5;
+  color: var(--treeflow-primary);
+}
+
+.list-node-toggle {
+  border: none;
+  background: transparent;
+  color: var(--treeflow-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.list-node-toggle.spacer {
+  width: 14px;
+  height: 14px;
+}
+
+.list-node-title {
+  flex: 1;
+  font-weight: 500;
+  color: var(--treeflow-text);
+}
+
+.list-node-input {
+  flex: 1;
+  border: 1px solid var(--treeflow-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.list-node-action {
+  border: 1px solid var(--treeflow-border);
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.list-node-action.secondary {
+  background: transparent;
+  color: var(--treeflow-text-muted);
+}
+
+.list-node-children {
+  margin-left: 12px;
+}

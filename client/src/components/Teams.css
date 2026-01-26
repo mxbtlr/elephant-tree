@@ -1,0 +1,541 @@
+.teams-container {
+  padding: 0;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.teams-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding: 0;
+}
+
+.teams-header h2 {
+  margin: 0;
+  color: var(--treeflow-text);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.btn-create-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--treeflow-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-create-team:hover {
+  background: var(--treeflow-primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(45, 122, 119, 0.3);
+}
+
+.teams-loading {
+  text-align: center;
+  padding: 60px;
+  color: var(--treeflow-text-light);
+}
+
+.error-message {
+  color: var(--treeflow-error);
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: #ffebee;
+  border-radius: 8px;
+  font-size: 14px;
+  border-left: 3px solid var(--treeflow-error);
+}
+
+.success-message {
+  color: var(--treeflow-success);
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: #e8f5e9;
+  border-radius: 8px;
+  font-size: 14px;
+  border-left: 3px solid var(--treeflow-success);
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background: var(--treeflow-card);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  border-bottom: 1px solid var(--treeflow-border-light);
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--treeflow-text);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--treeflow-text-light);
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-close:hover {
+  background: var(--treeflow-bg);
+  color: var(--treeflow-text);
+}
+
+.modal-content form {
+  padding: 24px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.teams-layout {
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: 24px;
+}
+
+.teams-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.team-card {
+  background: var(--treeflow-card);
+  border: 1px solid var(--treeflow-border);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: var(--treeflow-shadow);
+}
+
+.team-card:hover {
+  border-color: var(--treeflow-primary);
+  box-shadow: var(--treeflow-shadow-hover);
+  transform: translateY(-2px);
+}
+
+.team-card.selected {
+  border-color: var(--treeflow-primary);
+  background: #f0f4ff;
+  box-shadow: 0 0 0 3px rgba(45, 122, 119, 0.1);
+}
+
+.team-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.team-card-header h3 {
+  margin: 0;
+  color: var(--treeflow-text);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.team-description {
+  color: var(--treeflow-text-light);
+  font-size: 14px;
+  margin: 12px 0;
+  line-height: 1.6;
+}
+
+.team-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--treeflow-border-light);
+}
+
+.team-member-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--treeflow-text-light);
+  font-size: 14px;
+}
+
+.team-role-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--treeflow-bg);
+  color: var(--treeflow-text-light);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--treeflow-text-muted);
+  background: var(--treeflow-card);
+  border-radius: 12px;
+  box-shadow: var(--treeflow-shadow);
+}
+
+.empty-state svg {
+  margin-bottom: 20px;
+  opacity: 0.4;
+  font-size: 48px;
+  color: var(--treeflow-text-muted);
+}
+
+.empty-state p {
+  margin: 10px 0;
+  font-size: 16px;
+}
+
+.empty-state-subtitle {
+  font-size: 14px;
+  color: var(--treeflow-text-muted);
+}
+
+.team-details {
+  background: var(--treeflow-card);
+  border: 1px solid var(--treeflow-border);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: var(--treeflow-shadow);
+}
+
+.team-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--treeflow-border-light);
+}
+
+.team-details-header h3 {
+  margin: 0 0 8px 0;
+  color: var(--treeflow-text);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.team-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-danger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--treeflow-error);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-danger:hover {
+  background: #d32f2f;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--treeflow-bg);
+  color: var(--treeflow-text);
+  border: 1px solid var(--treeflow-border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: var(--treeflow-card);
+  border-color: var(--treeflow-primary);
+  color: var(--treeflow-primary);
+}
+
+.team-members-section {
+  margin-top: 32px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.section-header h4 {
+  margin: 0;
+  color: var(--treeflow-text);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.btn-add-member {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--treeflow-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-add-member:hover {
+  background: var(--treeflow-primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(45, 122, 119, 0.3);
+}
+
+.add-member-form {
+  background: var(--treeflow-bg);
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  border: 1px solid var(--treeflow-border);
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--treeflow-text);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--treeflow-border);
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+  box-sizing: border-box;
+  background: var(--treeflow-card);
+  color: var(--treeflow-text);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--treeflow-primary);
+  box-shadow: 0 0 0 3px rgba(45, 122, 119, 0.1);
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.btn-primary {
+  padding: 10px 20px;
+  background: var(--treeflow-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background: var(--treeflow-primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(45, 122, 119, 0.3);
+}
+
+.members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.member-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--treeflow-bg);
+  border-radius: 12px;
+  border: 1px solid var(--treeflow-border);
+  transition: all 0.2s;
+}
+
+.member-item:hover {
+  box-shadow: var(--treeflow-shadow);
+  transform: translateY(-1px);
+}
+
+.member-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-icon {
+  font-size: 18px;
+}
+
+.role-icon.lead {
+  color: #ff9800;
+}
+
+.role-icon.member {
+  color: var(--treeflow-primary);
+}
+
+.role-icon.viewer {
+  color: var(--treeflow-text-muted);
+}
+
+.member-name {
+  font-weight: 600;
+  color: var(--treeflow-text);
+  font-size: 15px;
+}
+
+.member-email {
+  color: var(--treeflow-text-light);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.member-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-select {
+  padding: 6px 12px;
+  border: 1px solid var(--treeflow-border);
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--treeflow-card);
+  color: var(--treeflow-text);
+  transition: all 0.2s;
+}
+
+.role-select:focus {
+  outline: none;
+  border-color: var(--treeflow-primary);
+  box-shadow: 0 0 0 3px rgba(45, 122, 119, 0.1);
+}
+
+.btn-icon-danger {
+  background: #ffebee;
+  color: var(--treeflow-error);
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.btn-icon-danger:hover {
+  background: #ffcdd2;
+}
+
+.current-user-badge {
+  padding: 4px 12px;
+  background: #e8f5e9;
+  color: var(--treeflow-success);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.empty-members {
+  text-align: center;
+  color: var(--treeflow-text-muted);
+  padding: 60px;
+  font-style: italic;
+  background: var(--treeflow-bg);
+  border-radius: 12px;
+  border: 1px dashed var(--treeflow-border);
+}
+
+@media (max-width: 1024px) {
+  .teams-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .teams-list {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+}

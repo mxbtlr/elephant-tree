@@ -1,0 +1,47 @@
+.create-space-modal {
+  width: 360px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--treeflow-shadow-hover);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.create-space-header {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.create-space-modal input,
+.create-space-modal textarea {
+  border: 1px solid var(--treeflow-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.create-space-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.create-space-actions button {
+  border: 1px solid var(--treeflow-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.create-space-actions button.secondary {
+  background: transparent;
+}
+
+.create-space-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
