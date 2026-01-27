@@ -80,6 +80,32 @@ export default {
       .eq('id', todoId);
     if (error) handleError(error, 'Failed to delete todo');
   },
+
+  // Work + dashboard views
+  listWorkspaceTodos: async (workspaceId) => {
+    const { data, error } = await supabase
+      .from('experiment_todos_with_context')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (error) handleError(error, 'Failed to fetch workspace todos');
+    return data || [];
+  },
+
+  getDecisionHealthMetrics: async (workspaceId) => {
+    const { data, error } = await supabase
+      .rpc('get_decision_health_metrics', { target_workspace_id: workspaceId });
+    if (error) handleError(error, 'Failed to fetch decision health metrics');
+    return data?.[0] || null;
+  },
+
+  getAtRiskOpportunities: async (workspaceId) => {
+    const { data, error } = await supabase
+      .rpc('get_at_risk_opportunities', { target_workspace_id: workspaceId });
+    if (error) handleError(error, 'Failed to fetch at-risk opportunities');
+    return data || [];
+  },
   // Workspaces
   listDecisionSpaces: async (workspaceId) => {
     const { data, error } = await supabase

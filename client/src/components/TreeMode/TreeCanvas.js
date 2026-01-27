@@ -176,6 +176,15 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
   }, [flowInstance, hasFit, layoutedNodes.length]);
 
   useEffect(() => {
+    if (!selectedKey || !flowInstance) return;
+    const target = nodes.find((node) => node.id === selectedKey);
+    const position = target?.positionAbsolute || target?.position;
+    if (position) {
+      flowInstance.setCenter(position.x, position.y, { zoom: 1.1, duration: 300 });
+    }
+  }, [selectedKey, nodes, flowInstance]);
+
+  useEffect(() => {
     const handleResize = () => {
       setLayoutTick((prev) => prev + 1);
     };

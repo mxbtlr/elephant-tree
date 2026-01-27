@@ -1,0 +1,64 @@
+.command-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  z-index: 300;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 80px;
+}
+
+.command-modal {
+  width: 520px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--treeflow-shadow-hover);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.command-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.command-input-field {
+  border: 1px solid var(--treeflow-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.command-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.command-result {
+  border: 1px solid var(--treeflow-border-light);
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.command-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--treeflow-text-muted);
+}
+
+.command-empty {
+  font-size: 12px;
+  color: var(--treeflow-text-muted);
+}

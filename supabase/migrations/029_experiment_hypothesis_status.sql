@@ -46,6 +46,12 @@ create trigger set_experiment_opportunity_id
   on public.experiments
   for each row execute function public.set_experiment_opportunity_id();
 
+update public.experiments e
+set opportunity_id = s.opportunity_id
+from public.solutions s
+where e.opportunity_id is null
+  and e.solution_id = s.id;
+
 create or replace function public.recompute_hypothesis_status(target_hypothesis_id uuid)
 returns void
 language plpgsql

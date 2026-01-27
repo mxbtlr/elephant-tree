@@ -566,6 +566,20 @@ function SidePanel({ outcomes, users, onUpdate }) {
     setShowCompleteModal(false);
   };
 
+  const isDecisionEnabled = todos.some((item) => item.is_done) || evidenceItems.length > 0;
+
+  useEffect(() => {
+    if (!isDecisionEnabled || nodeLookup?.type !== 'test') return;
+    const handleShortcut = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault();
+        setShowCompleteModal(true);
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, [isDecisionEnabled, nodeLookup?.type]);
+
   const handleUpdateEvidence = async (itemId, updates) => {
     try {
       const updated = await api.updateEvidence(itemId, updates);
@@ -1034,7 +1048,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
 
           <div
             className={`experiment-section experiment-section-decision ${
-              (todos.some((item) => item.is_done) || evidenceItems.length > 0) ? 'enabled' : 'disabled'
+              isDecisionEnabled ? 'enabled' : 'disabled'
             }`}
           >
             <div className="experiment-section-header">
@@ -1042,7 +1056,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
               <button
                 type="button"
                 className="experiment-complete-btn"
-                disabled={!(todos.some((item) => item.is_done) || evidenceItems.length > 0)}
+                disabled={!isDecisionEnabled}
                 onClick={() => setShowCompleteModal(true)}
               >
                 Complete Experiment

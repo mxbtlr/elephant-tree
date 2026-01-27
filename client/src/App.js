@@ -8,9 +8,13 @@ import CreateDecisionSpaceModal from './components/CreateDecisionSpaceModal';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
 import SidePanel from './components/SidePanel';
+import WorkView from './components/WorkView';
+import DashboardView from './components/DashboardView';
+import CommandPalette from './components/CommandPalette';
 import api from './services/supabaseApi';
 import { supabase } from './services/supabase';
 import { DEFAULT_TITLES, getNodeKey, parseNodeKey } from './lib/ostTypes';
+import { buildOstForest } from './lib/ostTree';
 import { useOstStore } from './store/useOstStore';
 
 function App() {
@@ -27,9 +31,15 @@ function App() {
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
   const [showCreateDecisionSpaceModal, setShowCreateDecisionSpaceModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState('tree');
+  const [lastStructurePage, setLastStructurePage] = useState('tree');
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
   const commandInputRef = useRef(null);
   const lastWorkspaceSwitchRef = useRef(0);
-  const { state: { viewMode, selectedKey }, actions: { setViewMode, setNodeOverride, setSelectedKey, setRenamingKey } } = useOstStore();
+  const {
+    state: { viewMode, selectedKey, nodeOverrides },
+    actions: { setViewMode, setNodeOverride, setSelectedKey, setRenamingKey, setFocusKey }
+  } = useOstStore();
   const DEBUG_AUTH = false;
   const isLegacyWorkspaceId = (value) =>
     typeof value === 'string' && (value.startsWith('team:') || value.startsWith('personal:'));
@@ -109,6 +119,13 @@ function App() {
   const legacyTeamIdForWrite = isLegacyWorkspaceId(activeWorkspaceId)
     ? activeWorkspace?.legacyTeamId || null
     : null;
+  const isWorkMode = currentPage === 'work';
+
+  useEffect(() => {
+    if (currentPage === 'tree' || currentPage === 'dashboard') {
+      setLastStructurePage(currentPage);
+    }
+  }, [currentPage]);
 
   const outcomesForWorkspace = useMemo(() => {
     if (!activeWorkspaceId) return [];
@@ -289,6 +306,12 @@ function App() {
     return null;
   };
 
+  const getPageFromPath = (path) => {
+    if (path.startsWith('/work')) return 'work';
+    if (path.startsWith('/dashboard')) return 'dashboard';
+    return 'tree';
+  };
+
   const parseRoute = () => {
     const match = window.location.pathname.match(/workspaces\/([^/]+)\/spaces\/?([^/]*)/);
     if (!match) return null;
@@ -458,7 +481,7 @@ function App() {
     const handleCommandShortcut = (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        commandInputRef.current?.focus();
+        setIsCommandOpen(true);
       }
     };
     window.addEventListener('keydown', handleCommandShortcut);
@@ -466,8 +489,16 @@ function App() {
   }, []);
 
   useEffect(() => {
+    setCurrentPage(getPageFromPath(window.location.pathname));
+    const handlePopState = () => setCurrentPage(getPageFromPath(window.location.pathname));
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
     const handleEscape = (event) => {
       if (event.key !== 'Escape') return;
+      setIsCommandOpen(false);
       setSelectedKey(null);
       setRenamingKey(null);
     };
@@ -698,6 +729,41 @@ function App() {
     setUser(updatedUser);
   };
 
+  const navigateToPage = (page) => {
+    setCurrentPage(page);
+    if (page === 'work') {
+      window.history.pushState({}, '', '/work');
+      return;
+    }
+    if (page === 'dashboard') {
+      window.history.pushState({}, '', '/dashboard');
+      return;
+    }
+    if (resolvedWorkspaceId) {
+      window.history.pushState(
+        {},
+        '',
+        `/workspaces/${encodeURIComponent(resolvedWorkspaceId)}/spaces/${encodeURIComponent(activeDecisionSpaceId || '')}`
+      );
+    }
+  };
+
+  const openNode = (nodeKey) => {
+    if (currentPage !== 'tree') {
+      navigateToPage('tree');
+    }
+    setSelectedKey(nodeKey);
+    setFocusKey(nodeKey);
+    if (viewMode !== 'tree') {
+      setViewMode('tree');
+    }
+  };
+
+  const paletteNodes = useMemo(() => {
+    const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {});
+    return Object.values(forest.nodesByKey || {});
+  }, [outcomesForDecisionSpace, nodeOverrides]);
+
   if (!user && !authInitializing) {
     return <Login onLogin={handleLogin} />;
   }
@@ -729,59 +795,46 @@ function App() {
                 setActiveDecisionSpaceId(null);
                 localStorage.setItem('treeflow:workspace', next);
                 if (next) {
-                  window.history.pushState({}, '', `/workspaces/${encodeURIComponent(next)}/spaces/`);
-                  void ensureActiveDecisionSpace(next);
+                  if (currentPage === 'tree') {
+                    window.history.pushState({}, '', `/workspaces/${encodeURIComponent(next)}/spaces/`);
+                    void ensureActiveDecisionSpace(next);
+                  } else {
+                    window.history.pushState({}, '', `/${currentPage}`);
+                  }
                 }
               }}
               className="board-select"
             >
               {effectiveWorkspaces.map((workspace) => (
                 <option key={workspace.id} value={workspace.id}>
-                  {workspace.name} {workspace.type === 'personal' ? '· Private' : `· ${workspace.memberCount || 1} members`}
+                  {workspace.name}{' '}
+                  {workspace.type === 'personal'
+                    ? '· Private'
+                    : `· ${workspace.memberCount || 1} members`}
                 </option>
               ))}
               <option disabled>──────────</option>
               <option value="__create_team__">+ Create team workspace…</option>
             </select>
           </div>
-          <div className="board-selector">
-            <select
-              value={activeDecisionSpaceId || ''}
-              onChange={(e) => {
-                const nextId = e.target.value;
-                if (nextId === '__create_space__') {
-                  setShowCreateDecisionSpaceModal(true);
-                  return;
-                }
-                setActiveDecisionSpaceId(nextId);
-                setLastSpaceForWorkspace(activeWorkspaceId, nextId);
-                if (activeWorkspaceId && nextId) {
-                  window.history.pushState(
-                    {},
-                    '',
-                    `/workspaces/${encodeURIComponent(activeWorkspaceId)}/spaces/${encodeURIComponent(nextId)}`
-                  );
-                }
-              }}
-              className="board-select"
-            >
-              {decisionSpaces.map((space) => (
-                <option key={space.id} value={space.id}>
-                  {space.name}
-                </option>
-              ))}
-              <option disabled>──────────</option>
-              <option value="__create_space__">+ New Decision Space…</option>
-            </select>
-          </div>
         </div>
         <div className="top-bar-center">
-          <input
-            className="command-input"
-            placeholder="⌘K Search or command"
-            aria-label="Command palette"
-            ref={commandInputRef}
-          />
+          <div className="mode-switch" role="group" aria-label="Mode">
+            <button
+              className={`mode-switch-btn ${isWorkMode ? 'active' : ''}`}
+              type="button"
+              onClick={() => navigateToPage('work')}
+            >
+              Work
+            </button>
+            <button
+              className={`mode-switch-btn ${!isWorkMode ? 'active' : ''}`}
+              type="button"
+              onClick={() => navigateToPage(lastStructurePage || 'tree')}
+            >
+              Structure
+            </button>
+          </div>
         </div>
         <div className="top-bar-right">
           {activeWorkspace?.type === 'team' && (
@@ -789,22 +842,81 @@ function App() {
               Members
             </button>
           )}
-          <div className="view-toggle">
-            <button
-              className={`view-toggle-btn ${viewMode === 'tree' ? 'active' : ''}`}
-              type="button"
-              onClick={() => setViewMode('tree')}
-            >
-              Tree
-            </button>
-            <button
-              className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
-              type="button"
-              onClick={() => setViewMode('list')}
-            >
-              List
-            </button>
-          </div>
+          {isWorkMode ? (
+            <div className="work-scope-hint">All decision spaces</div>
+          ) : (
+            <>
+              <div className="board-selector">
+                <select
+                  value={activeDecisionSpaceId || ''}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    if (nextId === '__create_space__') {
+                      setShowCreateDecisionSpaceModal(true);
+                      return;
+                    }
+                    setActiveDecisionSpaceId(nextId);
+                    setLastSpaceForWorkspace(activeWorkspaceId, nextId);
+                    if (activeWorkspaceId && nextId && currentPage === 'tree') {
+                      window.history.pushState(
+                        {},
+                        '',
+                        `/workspaces/${encodeURIComponent(activeWorkspaceId)}/spaces/${encodeURIComponent(nextId)}`
+                      );
+                    }
+                  }}
+                  className="board-select"
+                >
+                  {decisionSpaces.map((space) => (
+                    <option key={space.id} value={space.id}>
+                      {space.name}
+                    </option>
+                  ))}
+                  <option disabled>──────────</option>
+                  <option value="__create_space__">+ New Decision Space…</option>
+                </select>
+              </div>
+              <div className="structure-nav" role="group" aria-label="Structure view">
+                <button
+                  className={`structure-nav-btn ${currentPage === 'dashboard' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => navigateToPage('dashboard')}
+                >
+                  Dashboard
+                </button>
+                <button
+                  className={`structure-nav-btn ${
+                    currentPage === 'tree' && viewMode === 'tree' ? 'active' : ''
+                  }`}
+                  type="button"
+                  onClick={() => {
+                    navigateToPage('tree');
+                    setViewMode('tree');
+                  }}
+                >
+                  Tree
+                </button>
+                <button
+                  className={`structure-nav-btn ${
+                    currentPage === 'tree' && viewMode === 'list' ? 'active' : ''
+                  }`}
+                  type="button"
+                  onClick={() => {
+                    navigateToPage('tree');
+                    setViewMode('list');
+                  }}
+                >
+                  List
+                </button>
+              </div>
+            </>
+          )}
+          <input
+            className="command-input top-bar-command"
+            placeholder="⌘K Search or command"
+            aria-label="Command palette"
+            ref={commandInputRef}
+          />
           <AddOutcomeButton
             onCreate={() => handleBoardUpdate('add-outcome')}
             label="Outcome"
@@ -826,18 +938,38 @@ function App() {
         />
       )}
       <main className="app-main">
-        <TreeView 
-          outcomes={outcomesForDecisionSpace}
-          outcomesCount={outcomesForDecisionSpace.length}
-          workspaceName={activeWorkspace?.name}
-          decisionSpaceName={activeDecisionSpace?.name}
-          users={users}
-          onUpdate={handleBoardUpdate}
-          onAddOutcome={() => handleBoardUpdate('add-outcome')}
-        />
+        {currentPage === 'work' && (
+          <WorkView workspaceId={resolvedWorkspaceId} onOpenNode={openNode} />
+        )}
+        {currentPage === 'dashboard' && (
+          <DashboardView
+            workspaceId={resolvedWorkspaceId}
+            onOpenOpportunity={(key) => openNode(key)}
+          />
+        )}
+        {currentPage === 'tree' && (
+          <TreeView 
+            outcomes={outcomesForDecisionSpace}
+            outcomesCount={outcomesForDecisionSpace.length}
+            workspaceName={activeWorkspace?.name}
+            decisionSpaceName={activeDecisionSpace?.name}
+            users={users}
+            onUpdate={handleBoardUpdate}
+            onAddOutcome={() => handleBoardUpdate('add-outcome')}
+          />
+        )}
       </main>
       {selectedKey && <div className="canvas-scrim" onClick={() => setSelectedKey(null)} />}
       <SidePanel outcomes={outcomesForDecisionSpace || []} users={users} onUpdate={handleBoardUpdate} />
+      <CommandPalette
+        isOpen={isCommandOpen}
+        nodes={paletteNodes}
+        onClose={() => setIsCommandOpen(false)}
+        onSelect={(key) => {
+          setIsCommandOpen(false);
+          openNode(key);
+        }}
+      />
       {showMembersModal && activeWorkspace && (
           <WorkspaceMembersModal
             workspace={{ ...activeWorkspace, isOwner: activeWorkspace.owner_id === user?.id }}

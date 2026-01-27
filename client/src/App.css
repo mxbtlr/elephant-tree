@@ -49,44 +49,54 @@ body {
 /* Top Bar */
 .top-bar {
   background: var(--treeflow-card);
-  border-bottom: 1px solid var(--treeflow-border-light);
+  border-bottom: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 6px 12px;
+  gap: 16px;
+  padding: 10px 16px;
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05);
 }
 
 .top-bar-left,
 .top-bar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 
-.view-toggle {
+.mode-switch,
+.structure-nav {
   display: flex;
-  border: 1px solid var(--treeflow-border);
   border-radius: 999px;
-  overflow: hidden;
+  padding: 3px;
+  gap: 4px;
+  background: var(--treeflow-bg);
+  box-shadow: inset 0 0 0 1px var(--treeflow-border-light);
 }
 
-.view-toggle-btn {
+.mode-switch-btn,
+.structure-nav-btn {
   border: none;
-  background: #fff;
-  padding: 6px 14px;
+  background: transparent;
+  padding: 6px 12px;
   font-size: 12px;
   cursor: pointer;
   color: var(--treeflow-text-light);
+  border-radius: 999px;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
 
-.view-toggle-btn.active {
-  background: rgba(15, 118, 110, 0.12);
-  color: var(--treeflow-primary);
+.mode-switch-btn.active,
+.structure-nav-btn.active {
+  background: var(--treeflow-card);
+  color: var(--treeflow-text);
+  box-shadow: var(--treeflow-shadow);
 }
 
 .top-bar-center {
@@ -102,20 +112,20 @@ body {
 }
 
 .board-select {
-  border: 1px solid var(--treeflow-border);
-  background: white;
-  border-radius: 6px;
-  padding: 6px 8px;
+  border: 1px solid var(--treeflow-border-light);
+  background: var(--treeflow-bg);
+  border-radius: 10px;
+  padding: 7px 10px;
   font-size: 13px;
 }
 
 .command-input {
-  width: min(560px, 100%);
-  border: 1px solid var(--treeflow-border);
+  width: min(320px, 100%);
+  border: 1px solid var(--treeflow-border-light);
   border-radius: 8px;
-  padding: 6px 10px;
+  padding: 7px 10px;
   font-size: 13px;
-  background: #fafafa;
+  background: var(--treeflow-bg);
 }
 
 .command-input:focus {
@@ -125,8 +135,8 @@ body {
 }
 
 .top-button {
-  border: 1px solid var(--treeflow-border);
-  background: white;
+  border: 1px solid transparent;
+  background: var(--treeflow-bg);
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 12px;
@@ -136,14 +146,25 @@ body {
 }
 
 .top-button:hover {
-  background: var(--treeflow-bg);
-  border-color: var(--treeflow-primary-light);
+  background: white;
+  border-color: var(--treeflow-border-light);
 }
 
 .top-button.ghost {
   background: transparent;
   border-color: transparent;
   color: var(--treeflow-text-light);
+}
+
+.work-scope-hint {
+  font-size: 12px;
+  color: var(--treeflow-text-muted);
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.top-bar-command {
+  min-width: 180px;
 }
 
 /* Main Content */

@@ -1,0 +1,71 @@
+.dashboard-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dashboard-panel {
+  background: #fff;
+  border: 1px solid var(--treeflow-border-light);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.dashboard-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.dashboard-card {
+  border: 1px solid var(--treeflow-border-light);
+  border-radius: 10px;
+  padding: 12px;
+  background: #fafafa;
+}
+
+.dashboard-card-label {
+  font-size: 11px;
+  color: var(--treeflow-text-muted);
+}
+
+.dashboard-card-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.dashboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dashboard-list-item {
+  border: 1px solid var(--treeflow-border-light);
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.dashboard-pill {
+  font-size: 11px;
+  color: var(--treeflow-text-muted);
+  background: #f1f5f9;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.dashboard-empty {
+  font-size: 12px;
+  color: var(--treeflow-text-muted);
+}
