@@ -8,9 +8,10 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  height: calc(100vh - 60px);
-  position: sticky;
-  top: 60px;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  top: auto;
   overflow-y: auto;
 }
 
@@ -30,22 +31,45 @@
   color: var(--treeflow-text);
 }
 
-.side-panel-save {
+.side-panel-actions {
   margin-top: 8px;
-  border: 1px solid var(--treeflow-border);
-  background: var(--treeflow-primary);
-  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: sticky;
+  bottom: 12px;
+}
+
+.side-panel-save-state {
+  font-size: 11px;
+  color: var(--treeflow-text-muted);
+}
+
+.side-panel-save-state-saving {
+  color: var(--treeflow-text-light);
+}
+
+.side-panel-save-state-saved {
+  color: #15803d;
+}
+
+.side-panel-save-state-error {
+  color: #b91c1c;
+}
+
+.side-panel-delete {
+  border: 1px solid #fecaca;
+  background: #fee2e2;
+  color: #991b1b;
   border-radius: 10px;
   padding: 8px 12px;
   font-size: 12px;
   cursor: pointer;
   width: 100%;
-  position: sticky;
-  bottom: 12px;
 }
 
-.side-panel-save:hover {
-  background: var(--treeflow-primary-dark);
+.side-panel-delete:hover {
+  background: #fecaca;
 }
 
 .side-panel-field {

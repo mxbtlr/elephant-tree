@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { FaChevronDown, FaChevronRight, FaPlus } from 'react-icons/fa';
 import { allowedChildren, nodeTypeLabels } from '../../lib/ostTypes';
 import ConfidenceBadge from '../badges/ConfidenceBadge';
-import { buildOstTree } from '../../lib/ostTree';
+import { buildOstForest } from '../../lib/ostTree';
 import { useOstStore } from '../../store/useOstStore';
 import { TEST_TEMPLATES } from '../../lib/tests/templates';
 import './ListMode.css';
@@ -14,14 +14,14 @@ function ListModeView({ outcomes, onUpdate, confidenceMap, onAddOutcome }) {
   } = useOstStore();
   const [templatePicker, setTemplatePicker] = useState(null);
 
-  const tree = useMemo(() => {
+  const forest = useMemo(() => {
     if (!outcomes || outcomes.length === 0) return null;
-    return buildOstTree(outcomes[0], nodeOverrides);
+    return buildOstForest(outcomes, nodeOverrides);
   }, [outcomes, nodeOverrides]);
 
   return (
     <div className="list-mode-view">
-      {!tree ? (
+      {!forest ? (
         <div className="empty-state compact">
           <p>This Decision Space has no Outcomes yet.</p>
           <button type="button" className="tree-empty-cta" onClick={onAddOutcome}>
@@ -30,25 +30,28 @@ function ListModeView({ outcomes, onUpdate, confidenceMap, onAddOutcome }) {
         </div>
       ) : (
         <div className="list-tree">
-          <ListNode
-            node={tree.root}
-            depth={0}
-            collapsed={collapsed}
-            selectedKey={selectedKey}
-            renamingKey={renamingKey}
-            onSelect={setSelectedKey}
-            onToggleCollapse={toggleCollapse}
-            onRename={(key, title) => onUpdate?.('rename', { nodeKey: key, title })}
-            onAddChild={(key, childType) => {
-              if (childType === 'test') {
-                setTemplatePicker({ parentKey: key });
-                return;
-              }
-              onUpdate?.('add-child', { parentKey: key, childType });
-            }}
-            onSetRenaming={setRenamingKey}
-            confidenceMap={confidenceMap}
-          />
+          {forest.roots.map((root) => (
+            <ListNode
+              key={root.key}
+              node={root}
+              depth={0}
+              collapsed={collapsed}
+              selectedKey={selectedKey}
+              renamingKey={renamingKey}
+              onSelect={setSelectedKey}
+              onToggleCollapse={toggleCollapse}
+              onRename={(key, title) => onUpdate?.('rename', { nodeKey: key, title })}
+              onAddChild={(key, childType) => {
+                if (childType === 'test') {
+                  setTemplatePicker({ parentKey: key });
+                  return;
+                }
+                onUpdate?.('add-child', { parentKey: key, childType });
+              }}
+              onSetRenaming={setRenamingKey}
+              confidenceMap={confidenceMap}
+            />
+          ))}
         </div>
       )}
       {templatePicker && (

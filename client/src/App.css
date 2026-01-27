@@ -152,6 +152,14 @@ body {
   padding: 8px 12px;
   overflow: hidden;
   background: var(--treeflow-bg);
+  min-height: 0;
+  display: flex;
+  height: calc(100vh - 60px);
+}
+
+.app-main > .tree-view {
+  flex: 1;
+  min-height: 0;
 }
 
 /* Loading */

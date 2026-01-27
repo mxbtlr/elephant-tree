@@ -425,16 +425,22 @@ export default {
   updateOutcome: async (id, data) => {
     const updateData = {
       title: data.title,
-      description: data.description || null,
+      description: data.description ?? null,
       status: data.status,
       owner: data.owner,
-      team_id: data.teamId || null,
-      workspace_id: data.workspaceId || null,
-      decision_space_id: data.decisionSpaceId || null,
       visibility: data.visibility,
-      start_date: data.startDate || null,
-      end_date: data.endDate || null
+      start_date: data.startDate ?? null,
+      end_date: data.endDate ?? null
     };
+    if (Object.prototype.hasOwnProperty.call(data, 'teamId')) {
+      updateData.team_id = data.teamId ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'workspaceId')) {
+      updateData.workspace_id = data.workspaceId ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'decisionSpaceId')) {
+      updateData.decision_space_id = data.decisionSpaceId ?? null;
+    }
     // Remove undefined values
     Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
     
@@ -569,10 +575,12 @@ export default {
       description: data.description,
       status: data.status,
       owner: data.owner,
-      workspace_id: data.workspaceId || null,
-      start_date: data.startDate || null,
-      end_date: data.endDate || null
+      start_date: data.startDate ?? null,
+      end_date: data.endDate ?? null
     };
+    if (Object.prototype.hasOwnProperty.call(data, 'workspaceId')) {
+      updateData.workspace_id = data.workspaceId ?? null;
+    }
     Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
     
     const { data: opportunity, error } = await supabase
@@ -633,10 +641,12 @@ export default {
       description: data.description,
       status: data.status,
       owner: data.owner,
-      workspace_id: data.workspaceId || null,
-      start_date: data.startDate || null,
-      end_date: data.endDate || null
+      start_date: data.startDate ?? null,
+      end_date: data.endDate ?? null
     };
+    if (Object.prototype.hasOwnProperty.call(data, 'workspaceId')) {
+      updateData.workspace_id = data.workspaceId ?? null;
+    }
     Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
     
     const { data: solution, error } = await supabase
@@ -752,22 +762,69 @@ export default {
       success_criteria: data.successCriteria,
       result_decision: data.resultDecision,
       result_summary: data.resultSummary,
-      timebox_start: data.timebox?.start || null,
-      timebox_end: data.timebox?.end || null,
-      workspace_id: data.workspaceId || null,
-      start_date: data.startDate || null,
-      end_date: data.endDate || null
+      start_date: data.startDate ?? null,
+      end_date: data.endDate ?? null
     };
+    if (Object.prototype.hasOwnProperty.call(data, 'timebox')) {
+      updateData.timebox_start = data.timebox?.start ?? null;
+      updateData.timebox_end = data.timebox?.end ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'workspaceId')) {
+      updateData.workspace_id = data.workspaceId ?? null;
+    }
     Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
     
-    const { data: test, error } = await supabase
+    let result = await supabase
       .from('tests')
       .update(updateData)
       .eq('id', id)
       .select()
       .single();
     
-    if (error) handleError(error, 'Failed to update test');
+    if (result.error) {
+      const message = result.error.message || '';
+      const missingTable =
+        result.error.code === '42P01' ||
+        message.includes('does not exist') ||
+        message.includes('relation') ||
+        message.includes('schema cache') ||
+        message.includes('Could not find the table');
+
+      if (!missingTable) {
+        handleError(result.error, 'Failed to update test');
+      }
+
+      const fallbackStatus = data.testStatus === 'done'
+        ? 'evaluated'
+        : data.testStatus || data.status || null;
+
+      const experimentUpdate = {
+        title: data.title ?? null,
+        hypothesis: data.description ?? null,
+        status: fallbackStatus,
+        owner: data.owner ?? null,
+        test_template: data.testTemplate ?? null,
+        test_status: data.testStatus ?? null,
+        success_criteria: data.successCriteria ?? null,
+        result_decision: data.resultDecision ?? null,
+        result_summary: data.resultSummary ?? null
+      };
+      if (Object.prototype.hasOwnProperty.call(data, 'timebox')) {
+        experimentUpdate.timebox_start = data.timebox?.start ?? null;
+        experimentUpdate.timebox_end = data.timebox?.end ?? null;
+      }
+
+      result = await supabase
+        .from('experiments')
+        .update(experimentUpdate)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (result.error) handleError(result.error, 'Failed to update test');
+    }
+
+    const test = result.data;
     return {
       ...test,
       startDate: test.start_date,

@@ -4,6 +4,7 @@ import { allowedChildren, nodeTypeLabels } from '../../../lib/ostTypes';
 import { ostTokens } from '../../../lib/ui/tokens';
 import ConfidenceBadge from '../../badges/ConfidenceBadge';
 import { useOstStore } from '../../../store/useOstStore';
+import { TEST_TEMPLATES, getTemplateByKey } from '../../../lib/tests/templates';
 
 const zoomSelector = (state) => state.transform[2];
 
@@ -31,6 +32,21 @@ function TreeNodeBase({ data }) {
 
   const zoomLevel = zoom < 0.7 ? 'compact' : zoom < 1 ? 'medium' : 'expanded';
   const typeTokens = ostTokens.type[data.type] || {};
+  const testTypeLabel = (() => {
+    if (data.type !== 'test') return null;
+    const template = getTemplateByKey(data.testTemplate);
+    if (template) return template.label;
+    if (data.title) {
+      const normalized = data.title.trim().toLowerCase();
+      const match = TEST_TEMPLATES.find(
+        (item) =>
+          item.label.toLowerCase() === normalized ||
+          item.defaultTitle.toLowerCase() === normalized
+      );
+      if (match) return match.label;
+    }
+    return 'Custom';
+  })();
 
   const baseStyle = {
     background: typeTokens.tint || '#fff',
@@ -92,7 +108,22 @@ function TreeNodeBase({ data }) {
           {(data.type === 'opportunity' || data.type === 'solution') && data.confidence && (
             <ConfidenceBadge confidence={data.confidence} />
           )}
-          {data.status && <span className={`tree-node-badge status-${data.status}`}>{data.status}</span>}
+          {data.type === 'test' && (
+            <>
+              <span className="tree-node-pill tree-node-pill-type">
+                {testTypeLabel}
+              </span>
+              <span className="tree-node-pill tree-node-pill-status">
+                {(data.testStatus || 'planned').replace('_', ' ')}
+              </span>
+              <span className="tree-node-pill tree-node-pill-decision">
+                {(data.resultDecision || 'undecided').replace('_', ' ')}
+              </span>
+            </>
+          )}
+          {data.type !== 'test' && data.status && (
+            <span className={`tree-node-badge status-${data.status}`}>{data.status}</span>
+          )}
           {zoomLevel === 'expanded' && data.owner && (
             <span className="tree-node-badge owner">{data.ownerLabel}</span>
           )}

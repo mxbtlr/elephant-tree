@@ -6,11 +6,15 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 420px;
+  flex: 1;
+  height: 100%;
+  min-height: 70vh;
 }
 
 .tree-canvas-body {
-  height: 420px;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
   background: #fff;
   position: relative;
 }
@@ -186,6 +190,31 @@
   text-transform: none;
 }
 
+.tree-node-pill {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: var(--treeflow-text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.tree-node-pill-type {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.tree-node-pill-status {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.tree-node-pill-decision {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .tree-node-actions {
   display: flex;
   gap: 6px;
@@ -263,6 +292,10 @@
 .tree-node-compact .tree-node-badges,
 .tree-node-compact .tree-node-actions {
   display: none;
+}
+
+.tree-node-compact.tree-node-test .tree-node-badges {
+  display: flex;
 }
 
 .tree-node-compact .tree-node-title {

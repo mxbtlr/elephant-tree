@@ -31,11 +31,17 @@ function App() {
   const DEBUG_AUTH = false;
   const isLegacyWorkspaceId = (value) =>
     typeof value === 'string' && (value.startsWith('team:') || value.startsWith('personal:'));
-  const workspaceIdForWrite = isLegacyWorkspaceId(activeWorkspaceId) ? null : activeWorkspaceId;
-  const legacyTeamIdForWrite = isLegacyWorkspaceId(activeWorkspaceId)
-    ? activeWorkspace?.legacyTeamId || null
-    : null;
-
+  const resolveWorkspaceId = (value) => {
+    if (!value || !isLegacyWorkspaceId(value)) return value;
+    if (value.startsWith('personal:')) {
+      const ownerId = value.replace('personal:', '');
+      const personalWorkspace = workspaces.find(
+        (workspace) => workspace.type === 'personal' && workspace.owner_id === ownerId
+      );
+      return personalWorkspace?.id || value;
+    }
+    return value;
+  };
   // Simple cache to avoid repeated requests
   const dataCache = useRef({ outcomes: null, teams: null, cacheTime: 0 });
   const CACHE_DURATION = 30000; // 30 seconds
@@ -94,6 +100,13 @@ function App() {
     () => effectiveWorkspaces.find((workspace) => workspace.id === activeWorkspaceId) || null,
     [activeWorkspaceId, effectiveWorkspaces]
   );
+  const resolvedWorkspaceId = resolveWorkspaceId(activeWorkspaceId);
+  const workspaceIdForWrite = isLegacyWorkspaceId(resolvedWorkspaceId)
+    ? null
+    : resolvedWorkspaceId;
+  const legacyTeamIdForWrite = isLegacyWorkspaceId(activeWorkspaceId)
+    ? activeWorkspace?.legacyTeamId || null
+    : null;
 
   const outcomesForWorkspace = useMemo(() => {
     if (!activeWorkspaceId) return [];
@@ -140,8 +153,11 @@ function App() {
       return data;
     } catch (error) {
       console.error('Error loading data:', error);
-      setOutcomes([]);
-      throw error; // Re-throw so Promise.all can catch it
+      // Keep existing outcomes on transient failures to avoid view resets.
+      if (!dataCache.current.outcomes) {
+        setOutcomes([]);
+      }
+      return dataCache.current.outcomes || [];
     }
   };
 
@@ -282,27 +298,38 @@ function App() {
   };
 
   const ensureActiveDecisionSpace = async (workspaceId) => {
-    if (!workspaceId) return null;
-    const spaces = await api.listDecisionSpaces(workspaceId);
+    const resolvedWorkspaceId = resolveWorkspaceId(workspaceId);
+    if (!resolvedWorkspaceId) return null;
+    if (isLegacyWorkspaceId(resolvedWorkspaceId)) {
+      setDecisionSpaces([]);
+      setActiveDecisionSpaceId(null);
+      window.history.replaceState(
+        {},
+        '',
+        `/workspaces/${encodeURIComponent(resolvedWorkspaceId)}/spaces/`
+      );
+      return null;
+    }
+    const spaces = await api.listDecisionSpaces(resolvedWorkspaceId);
     setDecisionSpaces(spaces || []);
     if (!spaces || spaces.length === 0) {
       setActiveDecisionSpaceId(null);
       window.history.replaceState(
         {},
         '',
-        `/workspaces/${encodeURIComponent(workspaceId)}/spaces/`
+        `/workspaces/${encodeURIComponent(resolvedWorkspaceId)}/spaces/`
       );
       return null;
     }
     const lastMap = getLastSpaceMap();
-    const preferred = lastMap[workspaceId];
+    const preferred = lastMap[resolvedWorkspaceId];
     const nextId = spaces.find((space) => space.id === preferred)?.id || spaces[0].id;
     setActiveDecisionSpaceId(nextId);
-    setLastSpaceForWorkspace(workspaceId, nextId);
+    setLastSpaceForWorkspace(resolvedWorkspaceId, nextId);
     window.history.replaceState(
       {},
       '',
-      `/workspaces/${encodeURIComponent(workspaceId)}/spaces/${encodeURIComponent(nextId)}`
+      `/workspaces/${encodeURIComponent(resolvedWorkspaceId)}/spaces/${encodeURIComponent(nextId)}`
     );
     return nextId;
   };
@@ -333,18 +360,30 @@ function App() {
   useEffect(() => {
     const storedWorkspace = localStorage.getItem('treeflow:workspace');
     const route = parseRoute();
-    const nextWorkspace = route?.workspaceId || storedWorkspace || effectiveWorkspaces[0]?.id || null;
-    if (nextWorkspace) {
+    const rawWorkspace =
+      route?.workspaceId || storedWorkspace || effectiveWorkspaces[0]?.id || null;
+    const nextWorkspace = resolveWorkspaceId(rawWorkspace);
+    if (!nextWorkspace) return;
+    const isSameWorkspace = activeWorkspaceId === nextWorkspace;
+    if (!isSameWorkspace) {
       setActiveWorkspaceId(nextWorkspace);
       localStorage.setItem('treeflow:workspace', nextWorkspace);
-      if (route?.spaceId) {
-        setActiveDecisionSpaceId(route.spaceId);
-        setLastSpaceForWorkspace(nextWorkspace, route.spaceId);
-      } else {
-        void ensureActiveDecisionSpace(nextWorkspace);
-      }
     }
-  }, [effectiveWorkspaces]);
+    if (rawWorkspace && nextWorkspace !== rawWorkspace) {
+      const nextPath = `/workspaces/${encodeURIComponent(nextWorkspace)}/spaces/${encodeURIComponent(
+        route?.spaceId || ''
+      )}`;
+      window.history.replaceState({}, '', nextPath);
+    }
+    if (route?.spaceId) {
+      setActiveDecisionSpaceId(route.spaceId);
+      setLastSpaceForWorkspace(nextWorkspace, route.spaceId);
+      return;
+    }
+    if (!activeDecisionSpaceId || !isSameWorkspace) {
+      void ensureActiveDecisionSpace(nextWorkspace);
+    }
+  }, [effectiveWorkspaces, activeWorkspaceId, activeDecisionSpaceId]);
 
   useEffect(() => {
     if (!activeWorkspaceId) return;
@@ -359,13 +398,14 @@ function App() {
     const handlePopState = () => {
       const route = parseRoute();
       if (route?.workspaceId) {
-        setActiveWorkspaceId(route.workspaceId);
-        localStorage.setItem('treeflow:workspace', route.workspaceId);
+        const resolvedWorkspaceId = resolveWorkspaceId(route.workspaceId);
+        setActiveWorkspaceId(resolvedWorkspaceId);
+        localStorage.setItem('treeflow:workspace', resolvedWorkspaceId);
         if (route?.spaceId) {
           setActiveDecisionSpaceId(route.spaceId);
-          setLastSpaceForWorkspace(route.workspaceId, route.spaceId);
+          setLastSpaceForWorkspace(resolvedWorkspaceId, route.spaceId);
         } else {
-          void ensureActiveDecisionSpace(route.workspaceId);
+          void ensureActiveDecisionSpace(resolvedWorkspaceId);
         }
       }
     };
@@ -427,24 +467,84 @@ function App() {
     }
 
     try {
+      let shouldRefresh = true;
       let createdOutcome = null;
+      const applyNodePatch = (nodeKey, changes) => {
+        if (!nodeKey || !changes) return;
+        const sanitized = Object.entries(changes).reduce((acc, [key, value]) => {
+          if (value !== undefined) acc[key] = value;
+          return acc;
+        }, {});
+        setOutcomes((prev) => {
+          const parsed = parseNodeKey(nodeKey);
+          if (!parsed) return prev;
+          const { type, id } = parsed;
+          if (type === 'outcome') {
+            return (prev || []).map((outcome) =>
+              outcome.id === id ? { ...outcome, ...sanitized } : outcome
+            );
+          }
+          return (prev || []).map((outcome) => ({
+            ...outcome,
+            opportunities: (outcome.opportunities || []).map((opp) => {
+              if (type === 'opportunity' && opp.id === id) {
+                return { ...opp, ...sanitized };
+              }
+              return {
+                ...opp,
+                solutions: (opp.solutions || []).map((sol) => {
+                  if (type === 'solution' && sol.id === id) {
+                    return { ...sol, ...sanitized };
+                  }
+                  return {
+                    ...sol,
+                    tests: (sol.tests || []).map((test) =>
+                      type === 'test' && test.id === id ? { ...test, ...sanitized } : test
+                    )
+                  };
+                })
+              };
+            })
+          }));
+        });
+      };
+      if (action === 'patch-node') {
+        shouldRefresh = false;
+        const { nodeKey, changes } = payload || {};
+        applyNodePatch(nodeKey, changes);
+        return;
+      }
+      if (action === 'delete-node') {
+        shouldRefresh = false;
+        const { nodeKey } = payload || {};
+        if (!nodeKey) return;
+        const parsed = parseNodeKey(nodeKey);
+        if (!parsed) return;
+        if (parsed.type === 'outcome') {
+          setOutcomes((prev) => (prev || []).filter((item) => item.id !== parsed.id));
+        }
+        setSelectedKey(null);
+        setRenamingKey(null);
+        return;
+      }
       if (action === 'add-outcome') {
-        if (!activeDecisionSpaceId) {
+        if (workspaceIdForWrite && !activeDecisionSpaceId) {
           setShowCreateDecisionSpaceModal(true);
           return;
         }
+        const decisionSpaceIdForWrite = workspaceIdForWrite ? activeDecisionSpaceId : null;
         const created = await api.createOutcome({
           title: DEFAULT_TITLES.outcome,
           workspaceId: workspaceIdForWrite,
           teamId: legacyTeamIdForWrite,
-          decisionSpaceId: activeDecisionSpaceId
+          decisionSpaceId: decisionSpaceIdForWrite
         });
         if (created) {
           createdOutcome = {
             ...created,
             workspaceId: created.workspaceId ?? workspaceIdForWrite ?? null,
             teamId: created.teamId ?? legacyTeamIdForWrite ?? null,
-            decisionSpaceId: created.decisionSpaceId ?? activeDecisionSpaceId ?? null,
+            decisionSpaceId: created.decisionSpaceId ?? decisionSpaceIdForWrite ?? null,
             opportunities: created.opportunities || []
           };
           setOutcomes((prev) => {
@@ -492,9 +592,11 @@ function App() {
       }
 
       if (action === 'rename') {
+        shouldRefresh = false;
         const parsed = parseNodeKey(payload.nodeKey);
         if (!parsed) return;
         setNodeOverride(payload.nodeKey, { title: payload.title });
+        applyNodePatch(payload.nodeKey, { title: payload.title });
         if (parsed.type === 'outcome') {
           await api.updateOutcome(parsed.id, { title: payload.title });
         }
@@ -509,13 +611,18 @@ function App() {
         }
       }
 
-      const refreshed = await loadData(true);
-      await loadTeams(true);
-      if (createdOutcome && !(refreshed || []).some((item) => item.id === createdOutcome.id)) {
-        setOutcomes((prev) => {
-          const filtered = (prev || []).filter((item) => item.id !== createdOutcome.id);
-          return [createdOutcome, ...filtered];
-        });
+      if (shouldRefresh) {
+        const refreshed = await loadData(true);
+        await loadTeams(true);
+        if (
+          createdOutcome &&
+          !(refreshed || []).some((item) => item.id === createdOutcome.id)
+        ) {
+          setOutcomes((prev) => {
+            const filtered = (prev || []).filter((item) => item.id !== createdOutcome.id);
+            return [createdOutcome, ...filtered];
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to update board:', error);
@@ -636,7 +743,7 @@ function App() {
           </div>
           <AddOutcomeButton
             onCreate={() => handleBoardUpdate('add-outcome')}
-            label="+ Outcome"
+            label="Outcome"
             disabled={!activeDecisionSpaceId}
           />
           <button className="top-button" type="button">Filters</button>
@@ -704,7 +811,7 @@ function App() {
               `/workspaces/${encodeURIComponent(activeWorkspaceId)}/spaces/${encodeURIComponent(space.id)}`
             );
           }}
-          workspaceId={activeWorkspaceId}
+          workspaceId={resolveWorkspaceId(activeWorkspaceId)}
         />
       )}
     </div>

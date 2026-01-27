@@ -17,6 +17,9 @@ const buildNode = (type, data, parentKey, order, overrides) => {
     owner: override.owner ?? data.owner ?? null,
     evidence: override.evidence ?? data.evidence ?? '',
     result: override.result ?? data.result ?? '',
+    testTemplate: override.testTemplate ?? data.testTemplate ?? null,
+    testStatus: override.testStatus ?? data.testStatus ?? null,
+    resultDecision: override.resultDecision ?? data.resultDecision ?? null,
     raw: data
   };
 };

@@ -25,7 +25,7 @@ const getOwnerOptions = (users) =>
 function SidePanel({ outcomes, users, onUpdate }) {
   const {
     state: { selectedKey, nodeOverrides },
-    actions: { setNodeOverride, setEvidence }
+    actions: { setNodeOverride, setEvidence, setSelectedKey }
   } = useOstStore();
   const nodeLookup = useMemo(() => findNodeByKey(outcomes, selectedKey), [outcomes, selectedKey]);
   const override = selectedKey ? nodeOverrides[selectedKey] : null;
@@ -46,6 +46,14 @@ function SidePanel({ outcomes, users, onUpdate }) {
   const [evidenceItems, setEvidenceItems] = useState([]);
   const [isLoadingEvidence, setIsLoadingEvidence] = useState(false);
   const saveTimeoutRef = useRef(null);
+  const lastPayloadRef = useRef(null);
+  const [saveState, setSaveState] = useState('saved');
+  const buildPayload = (nextDraft = draft, nextTestDraft = testDraft) => {
+    if (nodeLookup?.type === 'test') {
+      return { ...nextDraft, ...nextTestDraft };
+    }
+    return { ...nextDraft };
+  };
 
   const isSameDraft = (next) =>
     draft.title === next.title &&
@@ -95,6 +103,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
     if (!isSameTestDraft(nextTestDraft)) {
       setTestDraft(nextTestDraft);
     }
+    setSaveState('saved');
   }, [effectiveNode]);
 
   useEffect(() => {
@@ -119,38 +128,50 @@ function SidePanel({ outcomes, users, onUpdate }) {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+      if (lastPayloadRef.current) {
+        void handleSave(lastPayloadRef.current, { refresh: false });
+      }
     };
   }, []);
 
-  const debouncedSave = (nextDraft) => {
+  const queueSave = (nextPayload, options = {}) => {
     if (!nodeLookup?.node) return;
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
+    lastPayloadRef.current = nextPayload;
+    setSaveState('saving');
 
-    const { type } = nodeLookup;
+    if (options.immediate) {
+      void handleSave(nextPayload, { refresh: false });
+      return;
+    }
+
     saveTimeoutRef.current = setTimeout(() => {
-      void handleSave(nextDraft);
-    }, 500);
+      void handleSave(nextPayload, { refresh: false });
+    }, 200);
   };
 
-  const handleFieldChange = (field, value) => {
+  const flushSave = () => {
+    queueSave(buildPayload(), { immediate: true });
+  };
+
+  const handleFieldChange = (field, value, options = {}) => {
     const next = { ...draft, [field]: value };
     setDraft(next);
     if (selectedKey) {
       setNodeOverride(selectedKey, { [field]: value });
     }
-    debouncedSave(next);
+    queueSave(buildPayload(next, testDraft), options);
   };
 
-  const handleTestFieldChange = (field, value) => {
+  const handleTestFieldChange = (field, value, options = {}) => {
     const next = { ...testDraft, [field]: value };
     setTestDraft(next);
     if (selectedKey) {
       setNodeOverride(selectedKey, { [field]: value });
     }
-    const payload = { ...draft, ...next };
-    debouncedSave(payload);
+    queueSave(buildPayload(draft, next), options);
   };
 
   const handleSuccessCriteriaChange = (field, value) => {
@@ -160,8 +181,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
     if (selectedKey) {
       setNodeOverride(selectedKey, { successCriteria: nextCriteria });
     }
-    const payload = { ...draft, ...next };
-    debouncedSave(payload);
+    queueSave(buildPayload(draft, next));
   };
 
   const handleResultDecisionChange = (value) => {
@@ -177,8 +197,9 @@ function SidePanel({ outcomes, users, onUpdate }) {
         testStatus: next.testStatus
       });
     }
-    const payload = { ...draft, ...next };
-    debouncedSave(payload);
+    const payload = buildPayload(draft, next);
+    setSaveState('saving');
+    void handleSave(payload, { refresh: false });
   };
 
   const handleAddEvidence = async (type) => {
@@ -224,7 +245,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
     }
   };
 
-  const handleSave = async (payload = { ...draft, ...testDraft }) => {
+  const handleSave = async (payload = buildPayload(), options = {}) => {
     if (!nodeLookup?.node) return;
     try {
       if (nodeLookup.type === 'outcome') {
@@ -236,9 +257,32 @@ function SidePanel({ outcomes, users, onUpdate }) {
       } else if (nodeLookup.type === 'test') {
         await api.updateTest(nodeLookup.node.id, payload);
       }
-      onUpdate?.();
+      if (selectedKey) {
+        onUpdate?.('patch-node', { nodeKey: selectedKey, changes: payload });
+      }
+      if (options.refresh) {
+        onUpdate?.();
+      }
+      setSaveState('saved');
     } catch (error) {
       console.error('Failed to update node:', error);
+      setSaveState('error');
+    }
+  };
+
+  const handleDeleteOutcome = async () => {
+    if (nodeLookup?.type !== 'outcome' || !nodeLookup.node?.id) return;
+    const confirmed = window.confirm('Delete this outcome and all its children?');
+    if (!confirmed) return;
+    try {
+      await api.deleteOutcome(nodeLookup.node.id);
+      if (selectedKey) {
+        setSelectedKey(null);
+      }
+      onUpdate?.('delete-node', { nodeKey: selectedKey });
+    } catch (error) {
+      console.error('Failed to delete outcome:', error);
+      alert(error.message || 'Failed to delete outcome');
     }
   };
 
@@ -264,7 +308,14 @@ function SidePanel({ outcomes, users, onUpdate }) {
         <input
           id="side-title"
           value={draft.title}
-          onChange={(e) => handleFieldChange('title', e.target.value)}
+          onChange={(e) => handleFieldChange('title', e.target.value, { immediate: true })}
+          onBlur={flushSave}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              flushSave();
+            }
+          }}
           placeholder="Title"
         />
       </div>
@@ -275,6 +326,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
           id="side-description"
           value={draft.description}
           onChange={(e) => handleFieldChange('description', e.target.value)}
+          onBlur={flushSave}
           placeholder="Add a short description"
           rows={4}
         />
@@ -293,7 +345,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
         <select
           id="side-status"
           value={draft.status || ''}
-          onChange={(e) => handleFieldChange('status', e.target.value)}
+          onChange={(e) => handleFieldChange('status', e.target.value, { immediate: true })}
         >
           <option value="">No status</option>
           {STATUS_OPTIONS.map((option) => (
@@ -309,7 +361,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
         <select
           id="side-owner"
           value={draft.owner || ''}
-          onChange={(e) => handleFieldChange('owner', e.target.value)}
+          onChange={(e) => handleFieldChange('owner', e.target.value, { immediate: true })}
         >
           <option value="">Unassigned</option>
           {ownerOptions.map((option) => (
@@ -330,7 +382,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
               </span>
               <select
                 value={testDraft.testTemplate || ''}
-                onChange={(e) => handleTestFieldChange('testTemplate', e.target.value || null)}
+                onChange={(e) => handleTestFieldChange('testTemplate', e.target.value || null, { immediate: true })}
               >
                 <option value="">Blank</option>
                 {TEST_TEMPLATES.map((template) => (
@@ -347,7 +399,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
             <select
               id="side-test-status"
               value={testDraft.testStatus || 'planned'}
-              onChange={(e) => handleTestFieldChange('testStatus', e.target.value)}
+              onChange={(e) => handleTestFieldChange('testStatus', e.target.value, { immediate: true })}
             >
               <option value="planned">Planned</option>
               <option value="running">Running</option>
@@ -471,9 +523,18 @@ function SidePanel({ outcomes, users, onUpdate }) {
         </>
       )}
 
-      <button className="side-panel-save" type="button" onClick={() => void handleSave()}>
-        Save info
-      </button>
+      <div className="side-panel-actions">
+        <div className={`side-panel-save-state side-panel-save-state-${saveState}`}>
+          {saveState === 'saving' && 'Saving...'}
+          {saveState === 'saved' && 'All changes saved'}
+          {saveState === 'error' && 'Save failed'}
+        </div>
+        {nodeLookup.type === 'outcome' && (
+          <button className="side-panel-delete" type="button" onClick={handleDeleteOutcome}>
+            Delete outcome
+          </button>
+        )}
+      </div>
     </aside>
   );
 }
