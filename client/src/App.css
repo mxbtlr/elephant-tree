@@ -162,6 +162,13 @@ body {
   min-height: 0;
 }
 
+.canvas-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.18);
+  z-index: 150;
+}
+
 /* Loading */
 .loading {
   display: flex;

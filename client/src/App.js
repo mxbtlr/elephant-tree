@@ -7,6 +7,7 @@ import CreateTeamWorkspaceModal from './components/CreateTeamWorkspaceModal';
 import CreateDecisionSpaceModal from './components/CreateDecisionSpaceModal';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
+import SidePanel from './components/SidePanel';
 import api from './services/supabaseApi';
 import { supabase } from './services/supabase';
 import { DEFAULT_TITLES, getNodeKey, parseNodeKey } from './lib/ostTypes';
@@ -15,6 +16,7 @@ import { useOstStore } from './store/useOstStore';
 function App() {
   const [outcomes, setOutcomes] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [users, setUsers] = useState([]);
   const [authInitializing, setAuthInitializing] = useState(true);
   const [user, setUser] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
@@ -27,7 +29,7 @@ function App() {
   const [showCreateDecisionSpaceModal, setShowCreateDecisionSpaceModal] = useState(false);
   const commandInputRef = useRef(null);
   const lastWorkspaceSwitchRef = useRef(0);
-  const { state: { viewMode }, actions: { setViewMode, setNodeOverride, setSelectedKey, setRenamingKey } } = useOstStore();
+  const { state: { viewMode, selectedKey }, actions: { setViewMode, setNodeOverride, setSelectedKey, setRenamingKey } } = useOstStore();
   const DEBUG_AUTH = false;
   const isLegacyWorkspaceId = (value) =>
     typeof value === 'string' && (value.startsWith('team:') || value.startsWith('personal:'));
@@ -244,6 +246,20 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const list = await api.getUsers();
+        setUsers(list || []);
+      } catch (error) {
+        console.error('Failed to load users:', error);
+      }
+    };
+    if (user) {
+      void loadUsers();
+    }
+  }, [user]);
+
   const handleLogin = async (userData) => {
     setUser(userData);
     loadData();
@@ -450,6 +466,16 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key !== 'Escape') return;
+      setSelectedKey(null);
+      setRenamingKey(null);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [setSelectedKey, setRenamingKey]);
+
+  useEffect(() => {
     const handleResizeObserverError = (event) => {
       if (event?.message?.includes('ResizeObserver loop completed')) {
         event.preventDefault();
@@ -521,7 +547,44 @@ function App() {
         const parsed = parseNodeKey(nodeKey);
         if (!parsed) return;
         if (parsed.type === 'outcome') {
+          await api.deleteOutcome(parsed.id);
           setOutcomes((prev) => (prev || []).filter((item) => item.id !== parsed.id));
+        }
+        if (parsed.type === 'opportunity') {
+          await api.deleteOpportunity(parsed.id);
+          setOutcomes((prev) =>
+            (prev || []).map((outcome) => ({
+              ...outcome,
+              opportunities: (outcome.opportunities || []).filter((opp) => opp.id !== parsed.id)
+            }))
+          );
+        }
+        if (parsed.type === 'solution') {
+          await api.deleteSolution(parsed.id);
+          setOutcomes((prev) =>
+            (prev || []).map((outcome) => ({
+              ...outcome,
+              opportunities: (outcome.opportunities || []).map((opp) => ({
+                ...opp,
+                solutions: (opp.solutions || []).filter((sol) => sol.id !== parsed.id)
+              }))
+            }))
+          );
+        }
+        if (parsed.type === 'test') {
+          await api.deleteTest(parsed.id);
+          setOutcomes((prev) =>
+            (prev || []).map((outcome) => ({
+              ...outcome,
+              opportunities: (outcome.opportunities || []).map((opp) => ({
+                ...opp,
+                solutions: (opp.solutions || []).map((sol) => ({
+                  ...sol,
+                  tests: (sol.tests || []).filter((test) => test.id !== parsed.id)
+                }))
+              }))
+            }))
+          );
         }
         setSelectedKey(null);
         setRenamingKey(null);
@@ -579,12 +642,13 @@ function App() {
         }
         if (payload.childType === 'test' && type === 'solution') {
           const created = await api.createTest(id, {
-            title: payload.template?.defaultTitle || DEFAULT_TITLES.test,
-            description: payload.template?.description || '',
-            testTemplate: payload.template?.key || null,
+            title: DEFAULT_TITLES.test,
+            description: '',
+            testTemplate: null,
+            testType: 'custom',
             testStatus: 'planned',
-            successCriteria: payload.template?.successCriteria || null,
-            timebox: payload.template?.timebox,
+            successCriteria: null,
+            timebox: null,
             workspaceId: workspaceIdForWrite
           });
           if (created?.id) setSelectedKey(getNodeKey('test', created.id));
@@ -767,10 +831,13 @@ function App() {
           outcomesCount={outcomesForDecisionSpace.length}
           workspaceName={activeWorkspace?.name}
           decisionSpaceName={activeDecisionSpace?.name}
+          users={users}
           onUpdate={handleBoardUpdate}
           onAddOutcome={() => handleBoardUpdate('add-outcome')}
         />
       </main>
+      {selectedKey && <div className="canvas-scrim" onClick={() => setSelectedKey(null)} />}
+      <SidePanel outcomes={outcomesForDecisionSpace || []} users={users} onUpdate={handleBoardUpdate} />
       {showMembersModal && activeWorkspace && (
           <WorkspaceMembersModal
             workspace={{ ...activeWorkspace, isOwner: activeWorkspace.owner_id === user?.id }}

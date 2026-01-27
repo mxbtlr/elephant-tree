@@ -215,6 +215,11 @@
   color: #92400e;
 }
 
+.tree-node-pill-todos {
+  background: #e2e8f0;
+  color: #334155;
+}
+
 .tree-node-actions {
   display: flex;
   gap: 6px;
@@ -238,6 +243,10 @@
 
 .tree-node-action:hover {
   border-color: var(--treeflow-primary-light);
+}
+
+.tree-node-action.subtle {
+  color: var(--treeflow-text-muted);
 }
 
 .tree-node-add {

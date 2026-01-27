@@ -1,10 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { FaChevronDown, FaChevronRight, FaPlus } from 'react-icons/fa';
 import { allowedChildren, nodeTypeLabels } from '../../lib/ostTypes';
 import ConfidenceBadge from '../badges/ConfidenceBadge';
 import { buildOstForest } from '../../lib/ostTree';
 import { useOstStore } from '../../store/useOstStore';
-import { TEST_TEMPLATES } from '../../lib/tests/templates';
 import './ListMode.css';
 
 function ListModeView({ outcomes, onUpdate, confidenceMap, onAddOutcome }) {
@@ -12,7 +11,6 @@ function ListModeView({ outcomes, onUpdate, confidenceMap, onAddOutcome }) {
     state: { collapsed, selectedKey, nodeOverrides, renamingKey },
     actions: { setSelectedKey, toggleCollapse, setRenamingKey }
   } = useOstStore();
-  const [templatePicker, setTemplatePicker] = useState(null);
 
   const forest = useMemo(() => {
     if (!outcomes || outcomes.length === 0) return null;
@@ -42,74 +40,12 @@ function ListModeView({ outcomes, onUpdate, confidenceMap, onAddOutcome }) {
               onToggleCollapse={toggleCollapse}
               onRename={(key, title) => onUpdate?.('rename', { nodeKey: key, title })}
               onAddChild={(key, childType) => {
-                if (childType === 'test') {
-                  setTemplatePicker({ parentKey: key });
-                  return;
-                }
                 onUpdate?.('add-child', { parentKey: key, childType });
               }}
               onSetRenaming={setRenamingKey}
               confidenceMap={confidenceMap}
             />
           ))}
-        </div>
-      )}
-      {templatePicker && (
-        <div className="template-modal-backdrop" onClick={() => setTemplatePicker(null)}>
-          <div className="template-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="template-modal-header">
-              <div>Choose a Test Template</div>
-              <button type="button" onClick={() => setTemplatePicker(null)}>
-                Close
-              </button>
-            </div>
-            <div className="template-list">
-              <button
-                type="button"
-                className="template-item"
-                onClick={() => {
-                  onUpdate?.('add-child', {
-                    parentKey: templatePicker.parentKey,
-                    childType: 'test',
-                    template: { key: null, defaultTitle: 'New Test' }
-                  });
-                  setTemplatePicker(null);
-                }}
-              >
-                Blank Test
-              </button>
-              {TEST_TEMPLATES.map((template) => (
-                <button
-                  key={template.key}
-                  type="button"
-                  className="template-item"
-                  onClick={() => {
-                    onUpdate?.('add-child', {
-                      parentKey: templatePicker.parentKey,
-                      childType: 'test',
-                      template: {
-                        key: template.key,
-                        defaultTitle: template.defaultTitle,
-                        successCriteria: template.successCriteria,
-                        timebox: template.timeboxDays
-                          ? {
-                              start: new Date().toISOString(),
-                              end: new Date(Date.now() + template.timeboxDays * 86400000).toISOString()
-                            }
-                          : null,
-                        description: template.checklist
-                          ? `Checklist:\n- ${template.checklist.join('\n- ')}`
-                          : ''
-                      }
-                    });
-                    setTemplatePicker(null);
-                  }}
-                >
-                  {template.label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       )}
     </div>

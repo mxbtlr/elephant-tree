@@ -8,11 +8,10 @@ import TestNode from './nodes/TestNode';
 import OverflowNode from './nodes/OverflowNode';
 import { buildOstForest, buildVisibleForest, getActivePath } from '../../lib/ostTree';
 import { layoutOstGraph } from '../../lib/layout/ostLayout';
-import { DEFAULT_TITLES, MAX_CHILDREN_VISIBLE, getNodeKey } from '../../lib/ostTypes';
+import { MAX_CHILDREN_VISIBLE, getNodeKey } from '../../lib/ostTypes';
 import { useOstStore } from '../../store/useOstStore';
 import OverflowModal from './OverflowModal';
 import { ostTokens } from '../../lib/ui/tokens';
-import { TEST_TEMPLATES } from '../../lib/tests/templates';
 import './TreeCanvas.css';
 
 const nodeTypes = {
@@ -35,7 +34,6 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
   const [layoutTick, setLayoutTick] = useState(0);
   const [hasFit, setHasFit] = useState(false);
   const [flowInstance, setFlowInstance] = useState(null);
-  const [templatePicker, setTemplatePicker] = useState(null);
   const ownerMap = useMemo(() => {
     const map = {};
     (users || []).forEach((user) => {
@@ -74,8 +72,11 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
         description: node.description,
         confidence: confidenceMap?.[node.key],
         testTemplate: node.testTemplate || null,
+        testType: node.testType || null,
         testStatus: node.testStatus || null,
         resultDecision: node.resultDecision || null,
+        todoDone: node.todoDone ?? null,
+        todoTotal: node.todoTotal ?? null,
         isCollapsed: collapsedSet.has(node.key),
         hasChildren: (node.children || []).length > 0,
         isDimmed: activeKey ? !activePath.nodes.has(node.key) : false,
@@ -88,13 +89,10 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
             toggleCollapse(key);
           }
           setOpenAddKey(null);
-          if (childType === 'test') {
-            setTemplatePicker({ parentKey: key });
-            return;
-          }
           onUpdate?.('add-child', { parentKey: key, childType });
         },
         onRename: (key, value) => onUpdate?.('rename', { nodeKey: key, title: value }),
+        onDelete: (key) => onUpdate?.('delete-node', { nodeKey: key }),
         isAddOpen: openAddKey === node.key,
         childrenCount: (node.children || []).length
       },
@@ -244,64 +242,6 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
         />
       )}
 
-      {templatePicker && (
-        <div className="template-modal-backdrop" onClick={() => setTemplatePicker(null)}>
-          <div className="template-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="template-modal-header">
-              <div>Choose a Test Template</div>
-              <button type="button" onClick={() => setTemplatePicker(null)}>
-                Close
-              </button>
-            </div>
-            <div className="template-list">
-              <button
-                type="button"
-                className="template-item"
-                onClick={() => {
-                  onUpdate?.('add-child', {
-                    parentKey: templatePicker.parentKey,
-                    childType: 'test',
-                    template: { key: null, defaultTitle: DEFAULT_TITLES.test }
-                  });
-                  setTemplatePicker(null);
-                }}
-              >
-                Blank Test
-              </button>
-              {TEST_TEMPLATES.map((template) => (
-                <button
-                  key={template.key}
-                  type="button"
-                  className="template-item"
-                  onClick={() => {
-                    onUpdate?.('add-child', {
-                      parentKey: templatePicker.parentKey,
-                      childType: 'test',
-                      template: {
-                        key: template.key,
-                        defaultTitle: template.defaultTitle,
-                        successCriteria: template.successCriteria,
-                        timebox: template.timeboxDays
-                          ? {
-                              start: new Date().toISOString(),
-                              end: new Date(Date.now() + template.timeboxDays * 86400000).toISOString()
-                            }
-                          : null,
-                        description: template.checklist
-                          ? `Checklist:\n- ${template.checklist.join('\n- ')}`
-                          : ''
-                      }
-                    });
-                    setTemplatePicker(null);
-                  }}
-                >
-                  {template.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

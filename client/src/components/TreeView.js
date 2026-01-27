@@ -3,33 +3,17 @@ import { FaEllipsisH } from 'react-icons/fa';
 import './TreeView.css';
 import TreeModeView from './TreeMode/TreeModeView';
 import ListModeView from './ListMode/ListModeView';
-import SidePanel from './SidePanel';
-import api from '../services/supabaseApi';
 import { buildOstTree, collectTreeNodes } from '../lib/ostTree';
 import { allowedChildren, parseNodeKey } from '../lib/ostTypes';
 import { computeConfidenceMap } from '../lib/confidence/recompute';
 import { useOstStore } from '../store/useOstStore';
 
-function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, onUpdate, onAddOutcome }) {
-  const [users, setUsers] = useState([]);
+function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, onUpdate, onAddOutcome, users }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const {
     state: { viewMode, layoutUnlocked, nodeOverrides, selectedKey, evidenceByTest },
-    actions: { setLayoutUnlocked, setCollapseMap, clearOverrides, setRenamingKey, setFocusKey }
+    actions: { setLayoutUnlocked, setCollapseMap, clearOverrides, setRenamingKey, setFocusKey, setSelectedKey }
   } = useOstStore();
-
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
-    try {
-      const usersList = await api.getUsers();
-      setUsers(usersList || []);
-    } catch (error) {
-      console.error('Error loading users:', error);
-    }
-  };
 
   useEffect(() => {
     clearOverrides();
@@ -162,7 +146,7 @@ function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, o
         )}
       </div>
       <div className="tree-view-content">
-        <div className="tree-container">
+        <div className="tree-container" onClick={() => setSelectedKey(null)}>
           {viewMode === 'tree' ? (
             <TreeModeView
               outcomes={outcomes}
@@ -180,7 +164,6 @@ function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, o
             />
           )}
         </div>
-        <SidePanel outcomes={outcomes || []} users={users} onUpdate={onUpdate} />
       </div>
     </div>
   );

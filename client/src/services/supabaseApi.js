@@ -17,6 +17,69 @@ async function getCurrentUserId() {
 }
 
 export default {
+  // Experiment todos
+  listExperimentTodos: async (experimentId) => {
+    const { data, error } = await supabase
+      .from('experiment_todos')
+      .select('*')
+      .eq('experiment_id', experimentId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (error) handleError(error, 'Failed to fetch todos');
+    return data || [];
+  },
+
+  createExperimentTodo: async (experimentId, title, options = {}) => {
+    const payload = {
+      experiment_id: experimentId,
+      title,
+      sort_order: options.sortOrder ?? 0,
+      due_date: options.dueDate ?? null
+    };
+    const { data, error } = await supabase
+      .from('experiment_todos')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) handleError(error, 'Failed to create todo');
+    return data;
+  },
+
+  toggleExperimentTodo: async (todoId, isDone) => {
+    const { data, error } = await supabase
+      .from('experiment_todos')
+      .update({ is_done: isDone })
+      .eq('id', todoId)
+      .select()
+      .single();
+    if (error) handleError(error, 'Failed to update todo');
+    return data;
+  },
+
+  updateExperimentTodo: async (todoId, updates) => {
+    const payload = {
+      title: updates.title,
+      due_date: updates.dueDate,
+      sort_order: updates.sortOrder
+    };
+    Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
+    const { data, error } = await supabase
+      .from('experiment_todos')
+      .update(payload)
+      .eq('id', todoId)
+      .select()
+      .single();
+    if (error) handleError(error, 'Failed to update todo');
+    return data;
+  },
+
+  deleteExperimentTodo: async (todoId) => {
+    const { error } = await supabase
+      .from('experiment_todos')
+      .delete()
+      .eq('id', todoId);
+    if (error) handleError(error, 'Failed to delete todo');
+  },
   // Workspaces
   listDecisionSpaces: async (workspaceId) => {
     const { data, error } = await supabase
@@ -347,6 +410,7 @@ export default {
               startDate: test.start_date,
               endDate: test.end_date,
               testTemplate: test.test_template,
+              testType: test.type,
               testStatus: test.test_status,
               successCriteria: test.success_criteria,
               resultDecision: test.result_decision,
@@ -355,6 +419,8 @@ export default {
                 start: test.timebox_start,
                 end: test.timebox_end
               },
+              hypothesisId: test.hypothesis_id,
+              opportunityId: test.opportunity_id,
               workspaceId: test.workspace_id,
               kpis: test.kpis || []
             })),
@@ -684,6 +750,8 @@ export default {
       owner: data.owner || userId,
       status: data.status || 'draft',
       test_template: data.testTemplate || null,
+      type: data.testType || 'custom',
+      hypothesis_id: data.hypothesisId || null,
       test_status: data.testStatus || 'planned',
       success_criteria: data.successCriteria || null,
       result_decision: data.resultDecision || null,
@@ -707,6 +775,8 @@ export default {
         kpis: [],
         startDate: test.start_date,
         endDate: test.end_date,
+        testType: test.type,
+        hypothesisId: test.hypothesis_id,
         workspaceId: test.workspace_id
       };
     }
@@ -727,9 +797,10 @@ export default {
       .from('experiments')
       .insert({
         solution_id: solutionId,
-        type: 'test',
+        type: data.testType || 'custom',
         title: data.title,
         hypothesis: data.description || null,
+        hypothesis_id: data.hypothesisId || null,
         status: data.status || 'planned',
         target_n: 50,
         created_by: userId,
@@ -745,6 +816,8 @@ export default {
       kpis: [],
       startDate: experiment.start_date,
       endDate: experiment.end_date,
+      testType: experiment.type,
+      hypothesisId: experiment.hypothesis_id,
       workspaceId: experiment.workspace_id
     };
   },
@@ -757,6 +830,8 @@ export default {
       status: data.status,
       evidence: data.evidence,
       result: data.result,
+      type: data.testType,
+      hypothesis_id: data.hypothesisId,
       test_template: data.testTemplate,
       test_status: data.testStatus,
       success_criteria: data.successCriteria,
@@ -803,6 +878,8 @@ export default {
         hypothesis: data.description ?? null,
         status: fallbackStatus,
         owner: data.owner ?? null,
+        type: data.testType ?? 'custom',
+        hypothesis_id: data.hypothesisId ?? null,
         test_template: data.testTemplate ?? null,
         test_status: data.testStatus ?? null,
         success_criteria: data.successCriteria ?? null,
@@ -1820,9 +1897,10 @@ export default {
       .from('experiments')
       .insert({
         solution_id: solutionId,
-        type: payload.type || 'calling_campaign',
+        type: payload.type || 'custom',
         title: payload.title,
         hypothesis: payload.hypothesis || null,
+        hypothesis_id: payload.hypothesisId || null,
         target_n: payload.targetN || 50,
         status: payload.status || 'planned',
         created_by: userId,
@@ -1864,6 +1942,51 @@ export default {
     }
 
     return experiment;
+  },
+
+  // Hypotheses
+  listHypotheses: async (opportunityId) => {
+    const { data, error } = await supabase
+      .from('hypotheses')
+      .select('*')
+      .eq('opportunity_id', opportunityId)
+      .order('created_at', { ascending: true });
+    if (error) handleError(error, 'Failed to fetch hypotheses');
+    return data || [];
+  },
+
+  createHypothesis: async (opportunityId, statement) => {
+    const { data, error } = await supabase
+      .from('hypotheses')
+      .insert({ opportunity_id: opportunityId, statement })
+      .select()
+      .single();
+    if (error) handleError(error, 'Failed to create hypothesis');
+    return data;
+  },
+
+  updateHypothesis: async (hypothesisId, updates) => {
+    const payload = {
+      statement: updates.statement,
+      status: updates.status
+    };
+    Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
+    const { data, error } = await supabase
+      .from('hypotheses')
+      .update(payload)
+      .eq('id', hypothesisId)
+      .select()
+      .single();
+    if (error) handleError(error, 'Failed to update hypothesis');
+    return data;
+  },
+
+  deleteHypothesis: async (hypothesisId) => {
+    const { error } = await supabase
+      .from('hypotheses')
+      .delete()
+      .eq('id', hypothesisId);
+    if (error) handleError(error, 'Failed to delete hypothesis');
   },
 
   listExperiments: async (solutionId) => {

@@ -18,8 +18,11 @@ const buildNode = (type, data, parentKey, order, overrides) => {
     evidence: override.evidence ?? data.evidence ?? '',
     result: override.result ?? data.result ?? '',
     testTemplate: override.testTemplate ?? data.testTemplate ?? null,
+    testType: override.testType ?? data.testType ?? data.type ?? null,
     testStatus: override.testStatus ?? data.testStatus ?? null,
     resultDecision: override.resultDecision ?? data.resultDecision ?? null,
+    todoDone: override.todoDone ?? data.todoDone ?? null,
+    todoTotal: override.todoTotal ?? data.todoTotal ?? null,
     raw: data
   };
 };
@@ -211,9 +214,13 @@ export const findNodeByKey = (outcomes, nodeKey) => {
     for (const opp of safeArray(outcome.opportunities)) {
       if (type === 'opportunity' && opp.id === id) return { type, node: opp, parent: outcome };
       for (const sol of safeArray(opp.solutions)) {
-        if (type === 'solution' && sol.id === id) return { type, node: sol, parent: opp, root: outcome };
+      if (type === 'solution' && sol.id === id) {
+        return { type, node: sol, parent: opp, opportunity: opp, root: outcome };
+      }
         for (const test of safeArray(sol.tests)) {
-          if (type === 'test' && test.id === id) return { type, node: test, parent: sol, root: outcome };
+        if (type === 'test' && test.id === id) {
+          return { type, node: test, parent: sol, opportunity: opp, root: outcome };
+        }
         }
       }
     }

@@ -5,6 +5,7 @@ import { ostTokens } from '../../../lib/ui/tokens';
 import ConfidenceBadge from '../../badges/ConfidenceBadge';
 import { useOstStore } from '../../../store/useOstStore';
 import { TEST_TEMPLATES, getTemplateByKey } from '../../../lib/tests/templates';
+import { FaTrash } from 'react-icons/fa';
 
 const zoomSelector = (state) => state.transform[2];
 
@@ -30,10 +31,26 @@ function TreeNodeBase({ data }) {
     actions.setRenamingKey(null);
   };
 
+  const handleDelete = () => {
+    const confirmed = window.confirm('Delete this node and its children?');
+    if (!confirmed) return;
+    data.onDelete?.(data.nodeKey);
+  };
+
   const zoomLevel = zoom < 0.7 ? 'compact' : zoom < 1 ? 'medium' : 'expanded';
   const typeTokens = ostTokens.type[data.type] || {};
   const testTypeLabel = (() => {
     if (data.type !== 'test') return null;
+    const typeLabels = {
+      interview: 'Interview',
+      cold_outreach: 'Cold Outreach',
+      pricing: 'Pricing',
+      prototype_usability: 'Prototype Usability',
+      custom: 'Custom'
+    };
+    if (data.testType && typeLabels[data.testType]) {
+      return typeLabels[data.testType];
+    }
     const template = getTemplateByKey(data.testTemplate);
     if (template) return template.label;
     if (data.title) {
@@ -119,6 +136,11 @@ function TreeNodeBase({ data }) {
               <span className="tree-node-pill tree-node-pill-decision">
                 {(data.resultDecision || 'undecided').replace('_', ' ')}
               </span>
+              {typeof data.todoTotal === 'number' && data.todoTotal > 0 && (
+                <span className="tree-node-pill tree-node-pill-todos">
+                  {`${data.todoDone || 0}/${data.todoTotal}`}
+                </span>
+              )}
             </>
           )}
           {data.type !== 'test' && data.status && (
@@ -134,6 +156,17 @@ function TreeNodeBase({ data }) {
       )}
 
       <div className="tree-node-actions">
+        <button
+          className="tree-node-action subtle"
+          onClick={(event) => {
+            event.stopPropagation();
+            handleDelete();
+          }}
+          type="button"
+          aria-label="Delete node"
+        >
+          <FaTrash />
+        </button>
         {data.hasChildren && (
           <button
             className="tree-node-action"
