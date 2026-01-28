@@ -1,0 +1,114 @@
+.team-drawer {
+  position: fixed;
+  top: calc(var(--topbar-gap) + var(--topbar-h) + 12px);
+  right: var(--topbar-gap);
+  width: 360px;
+  max-width: 70vw;
+  height: calc(100vh - (var(--topbar-gap) + var(--topbar-h) + 24px));
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.12);
+  transform: translateX(110%);
+  opacity: 0;
+  transition: transform 220ms ease, opacity 220ms ease;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 16px;
+  backdrop-filter: blur(10px);
+}
+
+.team-drawer.is-open {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.team-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.team-drawer-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--treeflow-text);
+}
+
+.team-drawer-subtitle {
+  font-size: 12px;
+  color: var(--treeflow-text-light);
+}
+
+.team-drawer-close {
+  border: none;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--treeflow-text);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.team-drawer-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--treeflow-text-muted);
+  margin-bottom: 8px;
+}
+
+.team-drawer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.team-drawer-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.team-drawer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.team-drawer-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--treeflow-text);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.team-drawer-you {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.12);
+  color: var(--brand-600);
+}
+
+.team-drawer-meta {
+  font-size: 11px;
+  color: var(--treeflow-text-muted);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.team-drawer-empty {
+  font-size: 12px;
+  color: var(--treeflow-text-muted);
+}

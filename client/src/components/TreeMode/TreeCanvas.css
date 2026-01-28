@@ -91,6 +91,13 @@
   gap: 6px;
 }
 
+.tree-node-avatars {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .tree-node-count-pill {
   margin-left: auto;
   background: rgba(15, 23, 42, 0.08);
@@ -439,6 +446,7 @@
   overflow: hidden;
   backdrop-filter: blur(10px);
 }
+
 
 .react-flow__controls button {
   width: 28px;

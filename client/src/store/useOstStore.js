@@ -10,7 +10,31 @@ const initialState = {
   focusKey: null,
   nodeOverrides: {},
   renamingKey: null,
-  evidenceByTest: {}
+  evidenceByTest: {},
+  todosById: {},
+  todoIdsByTest: {}
+};
+
+const buildTodoIdsByTest = (todosById) => {
+  const grouped = {};
+  Object.values(todosById).forEach((todo) => {
+    const testId = todo.experiment_id;
+    if (!testId) return;
+    if (!grouped[testId]) grouped[testId] = [];
+    grouped[testId].push(todo);
+  });
+  const ordered = {};
+  Object.entries(grouped).forEach(([testId, items]) => {
+    ordered[testId] = items
+      .sort((a, b) => {
+        const sortA = a.sort_order ?? 0;
+        const sortB = b.sort_order ?? 0;
+        if (sortA !== sortB) return sortA - sortB;
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      })
+      .map((todo) => todo.id);
+  });
+  return ordered;
 };
 
 const reducer = (state, action) => {
@@ -56,6 +80,75 @@ const reducer = (state, action) => {
     }
     case 'CLEAR_OVERRIDES':
       return { ...state, nodeOverrides: {} };
+    case 'SET_TODOS': {
+      const map = {};
+      (action.payload || []).forEach((todo) => {
+        map[todo.id] = todo;
+      });
+      return {
+        ...state,
+        todosById: map,
+        todoIdsByTest: buildTodoIdsByTest(map)
+      };
+    }
+    case 'UPSERT_TODO': {
+      const nextTodo = action.payload;
+      if (!nextTodo?.id) return state;
+      const prevTodo = state.todosById[nextTodo.id];
+      const prevTestId = prevTodo?.experiment_id || null;
+      const nextTestId = nextTodo.experiment_id || prevTestId;
+      const todosById = {
+        ...state.todosById,
+        [nextTodo.id]: { ...(prevTodo || {}), ...nextTodo }
+      };
+      const todoIdsByTest = { ...state.todoIdsByTest };
+      const affected = new Set([prevTestId, nextTestId].filter(Boolean));
+      affected.forEach((testId) => {
+        const items = Object.values(todosById).filter((todo) => todo.experiment_id === testId);
+        todoIdsByTest[testId] = items
+          .sort((a, b) => {
+            const sortA = a.sort_order ?? 0;
+            const sortB = b.sort_order ?? 0;
+            if (sortA !== sortB) return sortA - sortB;
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          })
+          .map((todo) => todo.id);
+      });
+      return { ...state, todosById, todoIdsByTest };
+    }
+    case 'REMOVE_TODO': {
+      const todoId = action.payload;
+      const prevTodo = state.todosById[todoId];
+      if (!prevTodo) return state;
+      const todosById = { ...state.todosById };
+      delete todosById[todoId];
+      const todoIdsByTest = { ...state.todoIdsByTest };
+      if (prevTodo.experiment_id) {
+        const items = Object.values(todosById).filter(
+          (todo) => todo.experiment_id === prevTodo.experiment_id
+        );
+        todoIdsByTest[prevTodo.experiment_id] = items
+          .sort((a, b) => {
+            const sortA = a.sort_order ?? 0;
+            const sortB = b.sort_order ?? 0;
+            if (sortA !== sortB) return sortA - sortB;
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          })
+          .map((todo) => todo.id);
+      }
+      return { ...state, todosById, todoIdsByTest };
+    }
+    case 'SET_TODO_ORDER': {
+      const { testId, orderedIds } = action.payload || {};
+      if (!testId) return state;
+      return {
+        ...state,
+        todoIdsByTest: {
+          ...state.todoIdsByTest,
+          [testId]: orderedIds || []
+        }
+      };
+    }
     default:
       return state;
   }
@@ -77,7 +170,12 @@ export const OstStoreProvider = ({ children }) => {
         dispatch({ type: 'SET_NODE_OVERRIDE', payload: { key, changes } }),
       setRenamingKey: (key) => dispatch({ type: 'SET_RENAMING_KEY', payload: key }),
       setEvidence: (testId, items) => dispatch({ type: 'SET_EVIDENCE', payload: { testId, items } }),
-      clearOverrides: () => dispatch({ type: 'CLEAR_OVERRIDES' })
+      clearOverrides: () => dispatch({ type: 'CLEAR_OVERRIDES' }),
+      setTodos: (todos) => dispatch({ type: 'SET_TODOS', payload: todos }),
+      upsertTodo: (todo) => dispatch({ type: 'UPSERT_TODO', payload: todo }),
+      removeTodo: (todoId) => dispatch({ type: 'REMOVE_TODO', payload: todoId }),
+      setTodoOrder: (testId, orderedIds) =>
+        dispatch({ type: 'SET_TODO_ORDER', payload: { testId, orderedIds } })
     }),
     []
   );

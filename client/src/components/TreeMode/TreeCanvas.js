@@ -80,6 +80,13 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
   const [layoutTick, setLayoutTick] = useState(0);
   const [hasFit, setHasFit] = useState(false);
   const [flowInstance, setFlowInstance] = useState(null);
+  const userMap = useMemo(() => {
+    const map = new Map();
+    (users || []).forEach((user) => {
+      map.set(user.id, user);
+    });
+    return map;
+  }, [users]);
   const ownerMap = useMemo(() => {
     const map = {};
     (users || []).forEach((user) => {
@@ -115,6 +122,11 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
         title: node.title,
         status: node.status,
         ownerLabel: node.owner ? ownerMap[node.owner] || node.owner : '',
+        ownerId: node.owner || null,
+        ownerUser: node.owner ? userMap.get(node.owner) : null,
+        contributorUsers: (node.contributorIds || node.contributors || [])
+          .map((id) => userMap.get(id))
+          .filter(Boolean),
         description: node.description,
         confidence: confidenceMap?.[node.key],
         testTemplate: node.testTemplate || null,
@@ -179,7 +191,8 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
     onUpdate,
     tree,
     ownerMap,
-    confidenceMap
+    confidenceMap,
+    userMap
   ]);
 
   const rawEdges = useMemo(() => {

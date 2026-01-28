@@ -22,19 +22,53 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
-.user-profile-header {
-  display: flex;
-  justify-content: space-between;
+.user-profile-hero {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
+  gap: 16px;
   padding: 24px;
   border-bottom: 1px solid var(--treeflow-border-light);
+  background: linear-gradient(180deg, rgba(217, 242, 236, 0.5), rgba(255, 255, 255, 0.9));
+  animation: profileHeroIn 240ms ease;
 }
 
-.user-profile-header h2 {
-  margin: 0;
-  color: var(--treeflow-text);
-  font-size: 24px;
+.user-profile-avatar {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.avatar-edit-hint {
+  font-size: 11px;
+  color: var(--treeflow-text-light);
+}
+
+.user-profile-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-profile-name {
+  font-size: 22px;
   font-weight: 600;
+  color: var(--treeflow-text);
+}
+
+.user-profile-role {
+  font-size: 13px;
+  color: var(--treeflow-text);
+  font-weight: 500;
+}
+
+.user-profile-email {
+  font-size: 12px;
+  color: var(--treeflow-text-light);
 }
 
 .btn-close {
@@ -91,8 +125,29 @@
   background: var(--treeflow-bg);
 }
 
+.user-profile-tabs button.tab-muted {
+  color: var(--treeflow-text-muted);
+}
+
 .user-profile-content {
   padding: 32px;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.save-indicator {
+  font-size: 12px;
+  color: var(--treeflow-primary);
+}
+
+.security-note {
+  font-size: 12px;
+  color: var(--treeflow-text-muted);
+  margin-bottom: 12px;
 }
 
 .form-group {
@@ -159,7 +214,7 @@
 }
 
 .btn-primary {
-  width: 100%;
+  width: auto;
   padding: 12px 24px;
   background: var(--treeflow-primary);
   color: white;
@@ -180,4 +235,15 @@
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+@keyframes profileHeroIn {
+  from {
+    transform: translateY(-6px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }

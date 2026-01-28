@@ -6,6 +6,8 @@ import { TEST_TEMPLATES, getTemplateByKey } from '../lib/tests/templates';
 import { findNodeByKey } from '../lib/ostTree';
 import { DEFAULT_TITLES, getNodeKey } from '../lib/ostTypes';
 import { useOstStore } from '../store/useOstStore';
+import Avatar from './Avatar';
+import TodoListPanel from './Todos/TodoListPanel';
 import './SidePanel.css';
 
 const EMPTY_DRAFT = {
@@ -25,8 +27,8 @@ const getOwnerOptions = (users) =>
 
 function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
   const {
-    state: { selectedKey, nodeOverrides },
-    actions: { setNodeOverride, setEvidence, setSelectedKey }
+    state: { selectedKey, nodeOverrides, todosById, todoIdsByTest },
+    actions: { setNodeOverride, setEvidence, setSelectedKey, upsertTodo, removeTodo }
   } = useOstStore();
   const nodeLookup = useMemo(() => findNodeByKey(outcomes, selectedKey), [outcomes, selectedKey]);
   const override = selectedKey ? nodeOverrides[selectedKey] : null;
@@ -48,8 +50,6 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
   });
   const [evidenceItems, setEvidenceItems] = useState([]);
   const [isLoadingEvidence, setIsLoadingEvidence] = useState(false);
-  const [todos, setTodos] = useState([]);
-  const [isLoadingTodos, setIsLoadingTodos] = useState(false);
   const [todoDraft, setTodoDraft] = useState('');
   const [editingTodoId, setEditingTodoId] = useState(null);
   const [editingTodoTitle, setEditingTodoTitle] = useState('');
@@ -59,6 +59,13 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
   const [decisionDraft, setDecisionDraft] = useState('pass');
   const [activePhase, setActivePhase] = useState('context');
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const userById = useMemo(() => {
+    const map = {};
+    (users || []).forEach((user) => {
+      map[user.id] = user;
+    });
+    return map;
+  }, [users]);
   const [hypotheses, setHypotheses] = useState([]);
   const [isLoadingHypotheses, setIsLoadingHypotheses] = useState(false);
   const [hypothesisDraft, setHypothesisDraft] = useState('');
@@ -154,24 +161,22 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
     void loadEvidence();
   }, [nodeLookup?.node?.id, nodeLookup?.type, setEvidence]);
 
-  useEffect(() => {
-    const loadTodos = async () => {
-      if (!nodeLookup?.node || nodeLookup.type !== 'test') {
-        setTodos([]);
-        return;
-      }
-      setIsLoadingTodos(true);
-      try {
-        const list = await api.listExperimentTodos(nodeLookup.node.id);
-        setTodos(list || []);
-      } catch (error) {
-        console.error('Failed to load todos:', error);
-      } finally {
-        setIsLoadingTodos(false);
-      }
-    };
-    void loadTodos();
-  }, [nodeLookup?.node?.id, nodeLookup?.type]);
+  const selectedTestId = nodeLookup?.type === 'test' ? nodeLookup?.node?.id : null;
+  const todos = useMemo(() => {
+    if (!selectedTestId) return [];
+    const ids = todoIdsByTest?.[selectedTestId] || [];
+    if (ids.length > 0) {
+      return ids.map((id) => todosById?.[id]).filter(Boolean);
+    }
+    return Object.values(todosById || {})
+      .filter((todo) => todo.experiment_id === selectedTestId)
+      .sort((a, b) => {
+        const sortA = a.sort_order ?? 0;
+        const sortB = b.sort_order ?? 0;
+        if (sortA !== sortB) return sortA - sortB;
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      });
+  }, [selectedTestId, todoIdsByTest, todosById]);
 
   useEffect(() => {
     const loadHypotheses = async () => {
@@ -398,67 +403,122 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
     }
   };
 
-  const refreshTodos = async () => {
-    if (!nodeLookup?.node || nodeLookup.type !== 'test') return;
-    try {
-      const list = await api.listExperimentTodos(nodeLookup.node.id);
-      setTodos(list || []);
-    } catch (error) {
-      console.error('Failed to refresh todos:', error);
-    }
-  };
-
   const handleCreateTodo = async () => {
     if (!nodeLookup?.node || nodeLookup.type !== 'test') return;
     const trimmed = todoDraft.trim();
     if (!trimmed) return;
     const maxSort = todos.reduce((max, item) => Math.max(max, item.sort_order || 0), 0);
+    const context = {
+      experiment_title: nodeLookup.node.title,
+      solution_title: nodeLookup.parent?.title,
+      opportunity_title: nodeLookup.opportunity?.title,
+      outcome_title: nodeLookup.root?.title
+    };
+    const tempId = `temp-${Date.now()}`;
+    const optimistic = {
+      id: tempId,
+      experiment_id: nodeLookup.node.id,
+      title: trimmed.slice(0, 120),
+      is_done: false,
+      due_date: null,
+      sort_order: maxSort + 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      ...context
+    };
     try {
-      await api.createExperimentTodo(nodeLookup.node.id, trimmed.slice(0, 120), { sortOrder: maxSort + 1 });
+      upsertTodo(optimistic);
+      const created = await api.createExperimentTodo(nodeLookup.node.id, trimmed.slice(0, 120), {
+        sortOrder: maxSort + 1
+      });
       setTodoDraft('');
-      await refreshTodos();
+      removeTodo(tempId);
+      if (created) {
+        upsertTodo({ ...created, ...context });
+      }
     } catch (error) {
       console.error('Failed to create todo:', error);
+      removeTodo(tempId);
     }
   };
 
   const handleToggleTodo = async (todo) => {
+    const previous = todosById?.[todo.id] || todo;
+    const optimistic = {
+      ...previous,
+      is_done: !todo.is_done,
+      updated_at: new Date().toISOString()
+    };
     try {
-      await api.toggleExperimentTodo(todo.id, !todo.is_done);
-      await refreshTodos();
+      upsertTodo(optimistic);
+      const saved = await api.toggleExperimentTodo(todo.id, !todo.is_done);
+      if (saved) {
+        upsertTodo(saved);
+      }
     } catch (error) {
       console.error('Failed to toggle todo:', error);
+      upsertTodo(previous);
     }
   };
 
   const handleUpdateTodoTitle = async (todoId, title) => {
     const trimmed = title.trim();
     if (!trimmed) return;
+    const previous = todosById?.[todoId];
+    const optimistic = {
+      ...(previous || {}),
+      id: todoId,
+      title: trimmed.slice(0, 120),
+      updated_at: new Date().toISOString()
+    };
     try {
-      await api.updateExperimentTodo(todoId, { title: trimmed.slice(0, 120) });
+      upsertTodo(optimistic);
+      const saved = await api.updateExperimentTodo(todoId, { title: trimmed.slice(0, 120) });
       setEditingTodoId(null);
       setEditingTodoTitle('');
-      await refreshTodos();
+      if (saved) {
+        upsertTodo(saved);
+      }
     } catch (error) {
       console.error('Failed to update todo:', error);
+      if (previous) {
+        upsertTodo(previous);
+      }
     }
   };
 
   const handleUpdateTodoDueDate = async (todoId, dueDate) => {
+    const previous = todosById?.[todoId];
+    const optimistic = {
+      ...(previous || {}),
+      id: todoId,
+      due_date: dueDate || null,
+      updated_at: new Date().toISOString()
+    };
     try {
-      await api.updateExperimentTodo(todoId, { dueDate: dueDate || null });
-      await refreshTodos();
+      upsertTodo(optimistic);
+      const saved = await api.updateExperimentTodo(todoId, { dueDate: dueDate || null });
+      if (saved) {
+        upsertTodo(saved);
+      }
     } catch (error) {
       console.error('Failed to update todo due date:', error);
+      if (previous) {
+        upsertTodo(previous);
+      }
     }
   };
 
   const handleDeleteTodo = async (todoId) => {
+    const previous = todosById?.[todoId];
     try {
+      removeTodo(todoId);
       await api.deleteExperimentTodo(todoId);
-      await refreshTodos();
     } catch (error) {
       console.error('Failed to delete todo:', error);
+      if (previous) {
+        upsertTodo(previous);
+      }
     }
   };
 
@@ -470,13 +530,43 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
     const current = todos[index];
     const target = todos[targetIndex];
     try {
+      upsertTodo({ ...current, sort_order: target.sort_order, updated_at: new Date().toISOString() });
+      upsertTodo({ ...target, sort_order: current.sort_order, updated_at: new Date().toISOString() });
       await api.updateExperimentTodo(current.id, { sortOrder: target.sort_order });
       await api.updateExperimentTodo(target.id, { sortOrder: current.sort_order });
-      await refreshTodos();
     } catch (error) {
       console.error('Failed to reorder todos:', error);
+      upsertTodo(current);
+      upsertTodo(target);
     }
   };
+
+  const renderTodoPanel = () => (
+    <TodoListPanel
+      todos={todos}
+      draftValue={todoDraft}
+      onDraftChange={setTodoDraft}
+      onAdd={() => void handleCreateTodo()}
+      onToggle={(todo) => void handleToggleTodo(todo)}
+      onUpdateDueDate={(todoId, dueDate) => void handleUpdateTodoDueDate(todoId, dueDate)}
+      onMoveUp={(todoId) => void handleMoveTodo(todoId, 'up')}
+      onMoveDown={(todoId) => void handleMoveTodo(todoId, 'down')}
+      onDelete={(todoId) => void handleDeleteTodo(todoId)}
+      editingTodoId={editingTodoId}
+      editingTodoTitle={editingTodoTitle}
+      onStartEdit={(todo) => {
+        setEditingTodoId(todo.id);
+        setEditingTodoTitle(todo.title);
+      }}
+      onEditChange={setEditingTodoTitle}
+      onCommitEdit={(todoId, title) => void handleUpdateTodoTitle(todoId, title)}
+      onCancelEdit={() => {
+        setEditingTodoId(null);
+        setEditingTodoTitle('');
+      }}
+      userById={userById}
+    />
+  );
 
   const refreshHypotheses = async () => {
     if (!nodeLookup?.node || nodeLookup.type !== 'opportunity') return;
@@ -652,6 +742,7 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
   };
 
   const isOpen = Boolean(nodeLookup?.node);
+  const ownerUser = nodeLookup?.node?.owner ? userById[nodeLookup.node.owner] : null;
 
   return (
     <aside
@@ -668,6 +759,11 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
         <div className="side-panel-title">
           {nodeTypeLabels[nodeLookup.type] || 'Node'}
         </div>
+        {ownerUser && (
+          <div className="side-panel-owner">
+            <Avatar user={ownerUser} size={24} isOwner />
+          </div>
+        )}
       </div>
 
       {nodeLookup.type === 'test' ? (
@@ -861,107 +957,7 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
               onFocusCapture={() => setActivePhase('do')}
               onClick={() => setActivePhase('do')}
             >
-              <div className="experiment-section-header">
-                <div>
-                  <div className="experiment-section-title">Do</div>
-                  <div className="experiment-section-subtitle">
-                    {todos.filter((item) => item.is_done).length} of {todos.length} completed
-                  </div>
-                </div>
-                {todos.length > 0 && todos.every((item) => item.is_done) && (
-                  <div className="experiment-section-hint">Ready to decide</div>
-                )}
-              </div>
-              <div className="side-panel-section">
-                <div className="todo-input-row">
-                  <input
-                    value={todoDraft}
-                    placeholder="Add a to-do..."
-                    maxLength={120}
-                    onChange={(event) => setTodoDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        void handleCreateTodo();
-                      }
-                    }}
-                  />
-                  <button type="button" onClick={() => void handleCreateTodo()}>
-                    Add
-                  </button>
-                </div>
-                {isLoadingTodos ? (
-                  <div className="side-panel-empty">Loading to-dos…</div>
-                ) : (
-                  <div className="todo-list">
-                    {todos.map((todo) => (
-                      <div key={todo.id} className="todo-row">
-                        <input
-                          type="checkbox"
-                          checked={todo.is_done}
-                          onChange={() => void handleToggleTodo(todo)}
-                        />
-                        {editingTodoId === todo.id ? (
-                          <input
-                            className="todo-title-input"
-                            value={editingTodoTitle}
-                            onChange={(event) => setEditingTodoTitle(event.target.value)}
-                            onBlur={() => void handleUpdateTodoTitle(todo.id, editingTodoTitle)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') {
-                                event.preventDefault();
-                                void handleUpdateTodoTitle(todo.id, editingTodoTitle);
-                              }
-                              if (event.key === 'Escape') {
-                                setEditingTodoId(null);
-                                setEditingTodoTitle('');
-                              }
-                            }}
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className={`todo-title ${todo.is_done ? 'done' : ''}`}
-                            onClick={() => {
-                              setEditingTodoId(todo.id);
-                              setEditingTodoTitle(todo.title);
-                            }}
-                          >
-                            {todo.title}
-                          </button>
-                        )}
-                        <input
-                          type="date"
-                          value={todo.due_date || ''}
-                          onChange={(event) => void handleUpdateTodoDueDate(todo.id, event.target.value)}
-                        />
-                        <div className="todo-actions">
-                          <button
-                            type="button"
-                            onClick={() => void handleMoveTodo(todo.id, 'up')}
-                            disabled={todos[0]?.id === todo.id}
-                          >
-                            ▲
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleMoveTodo(todo.id, 'down')}
-                            disabled={todos[todos.length - 1]?.id === todo.id}
-                          >
-                            ▼
-                          </button>
-                          <button type="button" onClick={() => void handleDeleteTodo(todo.id)}>
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    {todos.length === 0 && (
-                      <div className="side-panel-empty">No to-dos yet.</div>
-                    )}
-                  </div>
-                )}
-              </div>
+              {renderTodoPanel()}
             </div>
 
             <div className={`stepper-dot ${activePhase === 'decide' ? 'active' : ''}`} />
@@ -1368,107 +1364,7 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
           </div>
 
           <div className="experiment-section experiment-section-primary">
-            <div className="experiment-section-header">
-              <div>
-                <div className="experiment-section-title">Do</div>
-                <div className="experiment-section-subtitle">
-                  {todos.filter((item) => item.is_done).length} of {todos.length} completed
-                </div>
-              </div>
-              {todos.length > 0 && todos.every((item) => item.is_done) && (
-                <div className="experiment-section-hint">Ready to decide</div>
-              )}
-            </div>
-            <div className="side-panel-section">
-              <div className="todo-input-row">
-                <input
-                  value={todoDraft}
-                  placeholder="Add a to-do..."
-                  maxLength={120}
-                  onChange={(event) => setTodoDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      void handleCreateTodo();
-                    }
-                  }}
-                />
-                <button type="button" onClick={() => void handleCreateTodo()}>
-                  Add
-                </button>
-              </div>
-              {isLoadingTodos ? (
-                <div className="side-panel-empty">Loading to-dos…</div>
-              ) : (
-                <div className="todo-list">
-                  {todos.map((todo) => (
-                    <div key={todo.id} className="todo-row">
-                      <input
-                        type="checkbox"
-                        checked={todo.is_done}
-                        onChange={() => void handleToggleTodo(todo)}
-                      />
-                      {editingTodoId === todo.id ? (
-                        <input
-                          className="todo-title-input"
-                          value={editingTodoTitle}
-                          onChange={(event) => setEditingTodoTitle(event.target.value)}
-                          onBlur={() => void handleUpdateTodoTitle(todo.id, editingTodoTitle)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              void handleUpdateTodoTitle(todo.id, editingTodoTitle);
-                            }
-                            if (event.key === 'Escape') {
-                              setEditingTodoId(null);
-                              setEditingTodoTitle('');
-                            }
-                          }}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          className={`todo-title ${todo.is_done ? 'done' : ''}`}
-                          onClick={() => {
-                            setEditingTodoId(todo.id);
-                            setEditingTodoTitle(todo.title);
-                          }}
-                        >
-                          {todo.title}
-                        </button>
-                      )}
-                      <input
-                        type="date"
-                        value={todo.due_date || ''}
-                        onChange={(event) => void handleUpdateTodoDueDate(todo.id, event.target.value)}
-                      />
-                      <div className="todo-actions">
-                        <button
-                          type="button"
-                          onClick={() => void handleMoveTodo(todo.id, 'up')}
-                          disabled={todos[0]?.id === todo.id}
-                        >
-                          ▲
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleMoveTodo(todo.id, 'down')}
-                          disabled={todos[todos.length - 1]?.id === todo.id}
-                        >
-                          ▼
-                        </button>
-                        <button type="button" onClick={() => void handleDeleteTodo(todo.id)}>
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {todos.length === 0 && (
-                    <div className="side-panel-empty">No to-dos yet.</div>
-                  )}
-                </div>
-              )}
-            </div>
+            {renderTodoPanel()}
           </div>
 
           <div

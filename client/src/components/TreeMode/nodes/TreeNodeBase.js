@@ -6,6 +6,7 @@ import ConfidenceBadge from '../../badges/ConfidenceBadge';
 import { useOstStore } from '../../../store/useOstStore';
 import { TEST_TEMPLATES, getTemplateByKey } from '../../../lib/tests/templates';
 import { FaTrash } from 'react-icons/fa';
+import Avatar, { AvatarGroup } from '../../Avatar';
 
 const zoomSelector = (state) => state.transform[2];
 
@@ -73,6 +74,8 @@ function TreeNodeBase({ data }) {
     boxShadow: isSelected ? ostTokens.node.shadowSelected : ostTokens.node.shadow,
     '--node-accent': typeTokens.accent || '#64748b'
   };
+  const contributorUsers = data.contributorUsers || [];
+  const showOwner = data.type === 'opportunity' || data.type === 'solution' || data.type === 'test';
 
   return (
     <div
@@ -109,6 +112,16 @@ function TreeNodeBase({ data }) {
         ) : (
           <div className="tree-node-title" title={data.title}>
             {data.title}
+          </div>
+        )}
+        {showOwner && (
+          <div className="tree-node-avatars">
+            {data.ownerUser && (
+              <Avatar user={data.ownerUser} size={20} isOwner />
+            )}
+            {contributorUsers.length > 0 && (
+              <AvatarGroup users={contributorUsers} size={18} max={3} />
+            )}
           </div>
         )}
         {data.isCollapsed && data.childrenCount > 0 && (

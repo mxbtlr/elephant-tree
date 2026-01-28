@@ -27,6 +27,13 @@
   --topbar-h: 64px;
   --topbar-gap: 12px;
   --safe-top: calc(var(--topbar-h) + 16px);
+  --todo-sidebar-width: 340px;
+  --todo-shift: calc(var(--todo-sidebar-width) + 8px);
+  --todo-bg: rgba(248, 250, 252, 0.9);
+  --todo-bg-hover: rgba(255, 255, 255, 0.95);
+  --todo-border: rgba(15, 23, 42, 0.08);
+  --todo-success-bg: rgba(15, 118, 110, 0.08);
+  --todo-chip-bg: rgba(15, 23, 42, 0.06);
 }
 
 * {
@@ -51,6 +58,7 @@ body {
   flex-direction: column;
   background: var(--treeflow-bg);
 }
+
 
 /* Top Bar */
 .top-bar {
@@ -170,6 +178,28 @@ body {
   min-width: 180px;
 }
 
+.team-avatar-trigger,
+.workspace-team-trigger {
+  border: none;
+  background: transparent;
+  padding: 2px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.workspace-team-trigger {
+  font-size: 11px;
+  color: var(--treeflow-text-light);
+  padding: 6px 10px;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.workspace-team-trigger:hover {
+  color: var(--treeflow-text);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
 .top-bar-nav-select {
   display: none;
   border: 1px solid var(--treeflow-border-light);
@@ -235,11 +265,38 @@ body {
   min-height: 0;
   display: flex;
   height: 100vh;
+  transition: padding 220ms ease-out;
 }
 
 .app-main-scroll {
   padding: var(--safe-top) 16px 24px;
   overflow: auto;
+}
+
+.todo-pill {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  z-index: 80;
+  font-size: 15px;
+  color: var(--treeflow-text);
+}
+
+.todo-pill-count {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.12);
+  color: var(--brand-600);
 }
 
 .app-main > .tree-view {

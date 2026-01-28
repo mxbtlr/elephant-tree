@@ -56,6 +56,11 @@
   justify-content: space-between;
 }
 
+.side-panel-owner {
+  display: inline-flex;
+  align-items: center;
+}
+
 .side-panel-title {
   font-size: 14px;
   font-weight: 600;
@@ -438,7 +443,7 @@
 
 .todo-row {
   display: grid;
-  grid-template-columns: 16px 1fr 120px auto;
+  grid-template-columns: 16px 22px 1fr 120px auto;
   gap: 8px;
   align-items: center;
 }

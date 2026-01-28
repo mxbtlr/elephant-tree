@@ -5,12 +5,15 @@ import AddOutcomeButton from './components/AddOutcomeButton';
 import WorkspaceMembersModal from './components/WorkspaceMembersModal';
 import CreateTeamWorkspaceModal from './components/CreateTeamWorkspaceModal';
 import CreateDecisionSpaceModal from './components/CreateDecisionSpaceModal';
+import TeamDrawer from './components/TeamDrawer';
+import TodoSidebar from './components/Todos/TodoSidebar';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
 import SidePanel from './components/SidePanel';
-import WorkView from './components/WorkView';
 import DashboardView from './components/DashboardView';
 import CommandPalette from './components/CommandPalette';
+import { AvatarGroup } from './components/Avatar';
+import { FaCheckCircle } from 'react-icons/fa';
 import api from './services/supabaseApi';
 import { supabase } from './services/supabase';
 import { DEFAULT_TITLES, getNodeKey, parseNodeKey } from './lib/ostTypes';
@@ -33,11 +36,43 @@ function App() {
   const [showCreateDecisionSpaceModal, setShowCreateDecisionSpaceModal] = useState(false);
   const [currentPage, setCurrentPage] = useState('tree');
   const [isCommandOpen, setIsCommandOpen] = useState(false);
+  const [showTeamDrawer, setShowTeamDrawer] = useState(false);
+  const [isTodoOpen, setIsTodoOpen] = useState(() => {
+    try {
+      return localStorage.getItem('treeflow:todoOpen') === 'true';
+    } catch (error) {
+      return false;
+    }
+  });
+  const [workspaceMembers, setWorkspaceMembers] = useState([]);
+  const [lastActiveByUser, setLastActiveByUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('treeflow:lastActiveByUser') || '{}');
+    } catch (error) {
+      return {};
+    }
+  });
+  const [lastNodeByUser, setLastNodeByUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('treeflow:lastNodeByUser') || '{}');
+    } catch (error) {
+      return {};
+    }
+  });
   const commandInputRef = useRef(null);
   const lastWorkspaceSwitchRef = useRef(0);
+  const activityThrottleRef = useRef(0);
   const {
-    state: { viewMode, selectedKey, nodeOverrides },
-    actions: { setViewMode, setNodeOverride, setSelectedKey, setRenamingKey, setFocusKey }
+    state: { viewMode, selectedKey, nodeOverrides, todosById },
+    actions: {
+      setViewMode,
+      setNodeOverride,
+      setSelectedKey,
+      setRenamingKey,
+      setFocusKey,
+      setTodos,
+      upsertTodo
+    }
   } = useOstStore();
   const DEBUG_AUTH = false;
   const isLegacyWorkspaceId = (value) =>
@@ -119,7 +154,28 @@ function App() {
     ? activeWorkspace?.legacyTeamId || null
     : null;
   const isCanvasView = currentPage === 'tree' && viewMode === 'tree';
-  const isScrollPage = currentPage === 'work' || currentPage === 'dashboard';
+  const isScrollPage = currentPage === 'dashboard';
+  const activeUserIds = useMemo(() => {
+    const now = Date.now();
+    return new Set(
+      Object.entries(lastActiveByUser)
+        .filter(([, ts]) => now - Number(ts) < 5 * 60 * 1000)
+        .map(([id]) => id)
+    );
+  }, [lastActiveByUser]);
+  const workspaceRoleLabel = useMemo(() => {
+    if (!user?.id) return 'Member';
+    if (activeWorkspace?.owner_id === user.id) return 'Owner';
+    const member = workspaceMembers.find((item) => item.user_id === user.id);
+    if (member?.role === 'owner') return 'Owner';
+    if (member?.role === 'viewer') return 'Viewer';
+    return 'Editor';
+  }, [activeWorkspace?.owner_id, user?.id, workspaceMembers]);
+  const workspaceTodos = useMemo(() => Object.values(todosById || {}), [todosById]);
+  const openTodoCount = useMemo(
+    () => workspaceTodos.filter((todo) => !todo.is_done).length,
+    [workspaceTodos]
+  );
 
   const outcomesForWorkspace = useMemo(() => {
     if (!activeWorkspaceId) return [];
@@ -142,6 +198,40 @@ function App() {
       (item) => item.decisionSpaceId === activeDecisionSpaceId
     );
   }, [activeDecisionSpaceId, outcomesForWorkspace]);
+
+  const nodeTitleMap = useMemo(() => {
+    const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {});
+    const map = {};
+    Object.values(forest.nodesByKey || {}).forEach((node) => {
+      map[node.key] = node.title;
+    });
+    return map;
+  }, [outcomesForDecisionSpace, nodeOverrides]);
+  const testMetaById = useMemo(() => {
+    const forest = buildOstForest(outcomesForWorkspace || [], nodeOverrides || {});
+    const map = {};
+    const userById = {};
+    users.forEach((item) => {
+      userById[item.id] = item;
+    });
+    Object.values(forest.nodesByKey || {}).forEach((node) => {
+      if (node.type !== 'test') return;
+      const solution = forest.nodesByKey[node.parentKey];
+      const opportunity = solution ? forest.nodesByKey[solution.parentKey] : null;
+      const outcome = opportunity ? forest.nodesByKey[opportunity.parentKey] : null;
+      const breadcrumb = [solution?.title, opportunity?.title, outcome?.title].filter(Boolean).join(' → ');
+      map[node.id] = {
+        id: node.id,
+        title: node.title,
+        description: node.description,
+        testType: node.testType || node.type,
+        breadcrumb,
+        ownerId: node.owner || null,
+        ownerUser: node.owner ? userById[node.owner] : null
+      };
+    });
+    return map;
+  }, [outcomesForWorkspace, nodeOverrides, users]);
 
   const activeDecisionSpace = useMemo(
     () => decisionSpaces.find((space) => space.id === activeDecisionSpaceId) || null,
@@ -194,6 +284,37 @@ function App() {
       console.error('Error loading teams:', error);
       setTeams([]);
       throw error; // Re-throw so Promise.all can catch it
+    }
+  };
+
+  const handleToggleWorkspaceTodo = async (todo) => {
+    const previous = todosById?.[todo.id];
+    const optimistic = {
+      ...(previous || todo),
+      is_done: !todo.is_done,
+      updated_at: new Date().toISOString()
+    };
+    try {
+      upsertTodo(optimistic);
+      const saved = await api.toggleExperimentTodo(todo.id, !todo.is_done);
+      if (saved) {
+        upsertTodo(saved);
+      }
+    } catch (error) {
+      console.warn('Failed to toggle todo', error);
+      if (previous) {
+        upsertTodo(previous);
+      }
+    }
+  };
+
+  const handleAssignTestOwner = async (testId, ownerId) => {
+    try {
+      await api.updateTest(testId, { owner: ownerId || null });
+      await loadData(true);
+      await loadWorkspaceTodos();
+    } catch (error) {
+      console.warn('Failed to assign owner', error);
     }
   };
 
@@ -301,7 +422,10 @@ function App() {
   };
 
   const getPageFromPath = (path) => {
-    if (path.startsWith('/work')) return 'work';
+    if (path.startsWith('/work')) {
+      window.history.replaceState({}, '', '/tree');
+      return 'tree';
+    }
     if (path.startsWith('/dashboard')) return 'dashboard';
     return 'tree';
   };
@@ -426,6 +550,93 @@ function App() {
       void ensureActiveDecisionSpace(activeWorkspaceId);
     }
   }, [activeWorkspaceId]);
+
+  const loadWorkspaceTodos = async () => {
+    if (!resolvedWorkspaceId) {
+      setTodos([]);
+      return;
+    }
+    try {
+      const list = await api.listWorkspaceTodos(resolvedWorkspaceId);
+      setTodos(list || []);
+    } catch (error) {
+      console.warn('Failed to load todos', error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      void loadWorkspaceTodos();
+    }
+  }, [resolvedWorkspaceId, user]);
+
+  useEffect(() => {
+    localStorage.setItem('treeflow:todoOpen', String(isTodoOpen));
+  }, [isTodoOpen]);
+
+  useEffect(() => {
+    const loadMembers = async () => {
+      if (!resolvedWorkspaceId || isLegacyWorkspaceId(resolvedWorkspaceId)) {
+        setWorkspaceMembers([]);
+        return;
+      }
+      try {
+        const members = await api.listWorkspaceMembers(resolvedWorkspaceId);
+        setWorkspaceMembers(members || []);
+      } catch (error) {
+        console.warn('Failed to load workspace members', error);
+      }
+    };
+    if (user) {
+      void loadMembers();
+    }
+  }, [resolvedWorkspaceId, user]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const updateActivity = () => {
+      const now = Date.now();
+      if (now - activityThrottleRef.current < 30000) return;
+      activityThrottleRef.current = now;
+      setLastActiveByUser((prev) => {
+        const next = { ...prev, [user.id]: now };
+        localStorage.setItem('treeflow:lastActiveByUser', JSON.stringify(next));
+        return next;
+      });
+    };
+    const handleActivity = () => updateActivity();
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+    updateActivity();
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !selectedKey) return;
+    const label = nodeTitleMap[selectedKey] || selectedKey;
+    setLastNodeByUser((prev) => {
+      const next = { ...prev, [user.id]: label };
+      localStorage.setItem('treeflow:lastNodeByUser', JSON.stringify(next));
+      return next;
+    });
+  }, [selectedKey, nodeTitleMap, user?.id]);
+
+  const highlightTodoIds = useMemo(() => {
+    if (currentPage !== 'tree') return new Set();
+    const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {});
+    const testIds = new Set();
+    Object.values(forest.nodesByKey || {}).forEach((node) => {
+      if (node.type === 'test' && node.id) {
+        testIds.add(node.id);
+      }
+    });
+    return testIds;
+  }, [currentPage, outcomesForDecisionSpace, nodeOverrides]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -724,11 +935,12 @@ function App() {
   };
 
   const navigateToPage = (page) => {
-    setCurrentPage(page);
     if (page === 'work') {
-      window.history.pushState({}, '', '/work');
+      setCurrentPage('tree');
+      window.history.pushState({}, '', '/tree');
       return;
     }
+    setCurrentPage(page);
     if (page === 'dashboard') {
       window.history.pushState({}, '', '/dashboard');
       return;
@@ -771,7 +983,7 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app ${isTodoOpen ? 'todo-open' : ''}`}>
       <header className="top-bar top-bar-overlay">
         <div className="top-bar-left">
           <div className="app-title">TreeFlow</div>
@@ -812,6 +1024,14 @@ function App() {
               <option value="__create_team__">+ Create team workspace…</option>
             </select>
           </div>
+          <button
+            type="button"
+            className="workspace-team-trigger"
+            onClick={() => setShowTeamDrawer((prev) => !prev)}
+            aria-label="Open team drawer"
+          >
+            Team
+          </button>
           {currentPage === 'tree' && (
             <div className="board-selector decision-space-select">
               <select
@@ -847,13 +1067,6 @@ function App() {
         </div>
         <div className="top-bar-center">
           <div className="top-bar-nav" role="group" aria-label="Views">
-            <button
-              className={`top-bar-nav-btn ${currentPage === 'work' ? 'active' : ''}`}
-              type="button"
-              onClick={() => navigateToPage('work')}
-            >
-              Work
-            </button>
             <button
               className={`top-bar-nav-btn ${currentPage === 'dashboard' ? 'active' : ''}`}
               type="button"
@@ -891,7 +1104,7 @@ function App() {
             value={currentPage === 'tree' ? viewMode : currentPage}
             onChange={(e) => {
               const next = e.target.value;
-              if (next === 'work' || next === 'dashboard') {
+              if (next === 'dashboard') {
                 navigateToPage(next);
                 return;
               }
@@ -902,7 +1115,6 @@ function App() {
             }}
             aria-label="Select view"
           >
-            <option value="work">Work</option>
             <option value="dashboard">Dashboard</option>
             <option value="tree">Tree</option>
             <option value="list">List</option>
@@ -912,6 +1124,23 @@ function App() {
           {activeWorkspace?.type === 'team' && (
             <button className="top-button" type="button" onClick={() => setShowMembersModal(true)}>
               Members
+            </button>
+          )}
+          {workspaceMembers.length > 0 && (
+            <button
+              type="button"
+              className="team-avatar-trigger"
+              onClick={() => setShowTeamDrawer((prev) => !prev)}
+              aria-label="Open team drawer"
+            >
+              <AvatarGroup
+                users={workspaceMembers.map((member) => member.profile).filter(Boolean)}
+                size={22}
+                max={3}
+                showPresence
+                activeIds={activeUserIds}
+                ownerId={workspaceMembers.find((member) => member.role === 'owner')?.user_id || null}
+              />
             </button>
           )}
           <input
@@ -936,14 +1165,13 @@ function App() {
       {showProfile && (
         <UserProfile
           user={user}
+          workspace={activeWorkspace}
+          workspaceRole={workspaceRoleLabel}
           onUpdate={handleProfileUpdate}
           onClose={() => setShowProfile(false)}
         />
       )}
       <main className={`app-main ${isScrollPage ? 'app-main-scroll' : ''}`}>
-        {currentPage === 'work' && (
-          <WorkView workspaceId={resolvedWorkspaceId} onOpenNode={openNode} />
-        )}
         {currentPage === 'dashboard' && (
           <DashboardView
             workspaceId={resolvedWorkspaceId}
@@ -962,6 +1190,33 @@ function App() {
           />
         )}
       </main>
+      <TodoSidebar
+        isOpen={isTodoOpen}
+        todos={workspaceTodos}
+        users={users}
+        testMetaById={testMetaById}
+        highlightedIds={highlightTodoIds}
+        onOpenTest={(testId) => {
+          if (testId) {
+            openNode(`test:${testId}`);
+          }
+        }}
+        onToggleTodo={handleToggleWorkspaceTodo}
+        onAssignOwner={handleAssignTestOwner}
+        onClose={() => setIsTodoOpen(false)}
+      />
+      {!isTodoOpen && (
+        <button
+          type="button"
+          className="todo-pill"
+          onClick={() => setIsTodoOpen(true)}
+          aria-label="Open todos"
+        >
+          <FaCheckCircle />
+          <span>Todos</span>
+          <span className="todo-pill-count">{openTodoCount}</span>
+        </button>
+      )}
       {isCanvasView && selectedKey && (
         <div className="canvas-scrim" onClick={() => setSelectedKey(null)} />
       )}
@@ -970,6 +1225,15 @@ function App() {
         users={users}
         onUpdate={handleBoardUpdate}
         isDrawer={isCanvasView}
+      />
+      <TeamDrawer
+        isOpen={showTeamDrawer}
+        onClose={() => setShowTeamDrawer(false)}
+        workspace={activeWorkspace}
+        members={workspaceMembers}
+        currentUserId={user?.id}
+        activeMap={lastNodeByUser}
+        activeIds={activeUserIds}
       />
       <CommandPalette
         isOpen={isCommandOpen}

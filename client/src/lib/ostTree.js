@@ -15,6 +15,12 @@ const buildNode = (type, data, parentKey, order, overrides) => {
     description: override.description ?? data.description ?? '',
     status: override.status ?? data.status ?? null,
     owner: override.owner ?? data.owner ?? null,
+    contributorIds:
+      override.contributorIds ??
+      data.contributorIds ??
+      data.contributor_ids ??
+      data.contributors ??
+      [],
     evidence: override.evidence ?? data.evidence ?? '',
     result: override.result ?? data.result ?? '',
     testTemplate: override.testTemplate ?? data.testTemplate ?? null,

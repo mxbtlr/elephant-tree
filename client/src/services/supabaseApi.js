@@ -60,7 +60,8 @@ export default {
     const payload = {
       title: updates.title,
       due_date: updates.dueDate,
-      sort_order: updates.sortOrder
+      sort_order: updates.sortOrder,
+      assignee_id: updates.assigneeId
     };
     Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
     const { data, error } = await supabase

@@ -86,85 +86,105 @@ function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, o
     return computeConfidenceMap(outcomes, evidenceByTest, nodeOverrides);
   }, [outcomes, evidenceByTest, nodeOverrides]);
 
-  return (
-    <div className={`tree-view ${viewMode === 'list' ? 'tree-view-list' : 'tree-view-canvas'}`}>
-      <div className="context-bar">
-        <span>Workspace · {workspaceName || '—'}</span>
-        <span>·</span>
-        <span>Decision Space · {decisionSpaceName || '—'}</span>
-        <span>·</span>
-        <span>{outcomesCount || 0} Outcomes</span>
-      </div>
-      <div className="tree-toolbar">
-        {viewMode === 'tree' && (
-          <>
-            <button className="tree-toolbar-btn" type="button" onClick={handleCollapseAll}>
-              Collapse all
-            </button>
-            <button className="tree-toolbar-btn" type="button" onClick={handleExpandAll}>
-              Expand all
-            </button>
-            <div className="tree-toolbar-expand">
-              <button
-                className="tree-toolbar-btn"
-                type="button"
-                onClick={() => handleExpandToLevel(2)}
-              >
-                Expand to level
-              </button>
-              <div className="tree-toolbar-expand-options">
-                {[1, 2, 3, 4].map((level) => (
-                  <button key={level} type="button" onClick={() => handleExpandToLevel(level)}>
-                    Level {level}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="tree-toolbar-menu">
-              <button
-                className="tree-toolbar-btn icon"
-                type="button"
-                onClick={() => setIsMenuOpen((prev) => !prev)}
-              >
-                <FaEllipsisH />
-              </button>
-              {isMenuOpen && (
-                <div className="tree-toolbar-menu-card">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLayoutUnlocked(!layoutUnlocked);
-                      setIsMenuOpen(false);
-                    }}
-                  >
-                    {layoutUnlocked ? 'Lock layout' : 'Unlock layout'}
-                  </button>
-                </div>
-              )}
-            </div>
-          </>
+  const isListView = viewMode === 'list';
+  const content = (
+    <div className="tree-view-content">
+      <div className="tree-container" onClick={() => setSelectedKey(null)}>
+        {viewMode === 'tree' ? (
+          <TreeModeView
+            outcomes={outcomes}
+            onUpdate={onUpdate}
+            users={users}
+            confidenceMap={confidenceMap}
+            onAddOutcome={onAddOutcome}
+          />
+        ) : (
+          <ListModeView
+            outcomes={outcomes}
+            onUpdate={onUpdate}
+            confidenceMap={confidenceMap}
+            onAddOutcome={onAddOutcome}
+          />
         )}
       </div>
-      <div className="tree-view-content">
-        <div className="tree-container" onClick={() => setSelectedKey(null)}>
-          {viewMode === 'tree' ? (
-            <TreeModeView
-              outcomes={outcomes}
-              onUpdate={onUpdate}
-              users={users}
-              confidenceMap={confidenceMap}
-              onAddOutcome={onAddOutcome}
-            />
-          ) : (
-            <ListModeView
-              outcomes={outcomes}
-              onUpdate={onUpdate}
-              confidenceMap={confidenceMap}
-              onAddOutcome={onAddOutcome}
-            />
-          )}
+    </div>
+  );
+
+  return (
+    <div className={`tree-view ${isListView ? 'tree-view-list' : 'tree-view-canvas'}`}>
+      {isListView ? (
+        <>
+          <div className="context-bar">
+            <span>Workspace · {workspaceName || '—'}</span>
+            <span>·</span>
+            <span>Decision Space · {decisionSpaceName || '—'}</span>
+            <span>·</span>
+            <span>{outcomesCount || 0} Outcomes</span>
+          </div>
+          {content}
+        </>
+      ) : (
+        <div className="canvas-root">
+          <div className="context-bar">
+            <span>Workspace · {workspaceName || '—'}</span>
+            <span>·</span>
+            <span>Decision Space · {decisionSpaceName || '—'}</span>
+            <span>·</span>
+            <span>{outcomesCount || 0} Outcomes</span>
+          </div>
+          <div className="tree-toolbar">
+            {viewMode === 'tree' && (
+              <>
+                <button className="tree-toolbar-btn" type="button" onClick={handleCollapseAll}>
+                  Collapse all
+                </button>
+                <button className="tree-toolbar-btn" type="button" onClick={handleExpandAll}>
+                  Expand all
+                </button>
+                <div className="tree-toolbar-expand">
+                  <button
+                    className="tree-toolbar-btn"
+                    type="button"
+                    onClick={() => handleExpandToLevel(2)}
+                  >
+                    Expand to level
+                  </button>
+                  <div className="tree-toolbar-expand-options">
+                    {[1, 2, 3, 4].map((level) => (
+                      <button key={level} type="button" onClick={() => handleExpandToLevel(level)}>
+                        Level {level}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="tree-toolbar-menu">
+                  <button
+                    className="tree-toolbar-btn icon"
+                    type="button"
+                    onClick={() => setIsMenuOpen((prev) => !prev)}
+                  >
+                    <FaEllipsisH />
+                  </button>
+                  {isMenuOpen && (
+                    <div className="tree-toolbar-menu-card">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLayoutUnlocked(!layoutUnlocked);
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        {layoutUnlocked ? 'Lock layout' : 'Unlock layout'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+          {content}
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { FaUser, FaLock, FaTimes } from 'react-icons/fa';
+import React, { useState, useEffect, useRef } from 'react';
+import { FaUser, FaLock, FaTimes, FaSlidersH } from 'react-icons/fa';
 import api from '../services/supabaseApi';
+import Avatar from './Avatar';
 import './UserProfile.css';
 
-function UserProfile({ user, onUpdate, onClose }) {
-  const [activeTab, setActiveTab] = useState('profile');
+function UserProfile({ user, onUpdate, onClose, workspace, workspaceRole }) {
+  const [activeTab, setActiveTab] = useState('identity');
   const [profileData, setProfileData] = useState({
     name: user.name || '',
     profile: {
       bio: user.profile?.bio || '',
+      avatar: user.profile?.avatar || '',
+      badge: user.profile?.badge || '',
       preferences: {
         theme: user.profile?.preferences?.theme || 'light',
         notifications: user.profile?.preferences?.notifications !== false
@@ -23,6 +26,7 @@ function UserProfile({ user, onUpdate, onClose }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const avatarInputRef = useRef(null);
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
@@ -32,9 +36,9 @@ function UserProfile({ user, onUpdate, onClose }) {
 
     try {
       const updated = await api.updateProfile(profileData);
-      setSuccess('Profile updated successfully');
+      setSuccess('Saved ✓');
       onUpdate(updated);
-      setTimeout(() => setSuccess(''), 3000);
+      setTimeout(() => setSuccess(''), 2000);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update profile');
     } finally {
@@ -63,13 +67,13 @@ function UserProfile({ user, onUpdate, onClose }) {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword
       });
-      setSuccess('Password changed successfully');
+      setSuccess('Saved ✓');
       setPasswordData({
         currentPassword: '',
         newPassword: '',
         confirmPassword: ''
       });
-      setTimeout(() => setSuccess(''), 3000);
+      setTimeout(() => setSuccess(''), 2000);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to change password');
     } finally {
@@ -80,8 +84,22 @@ function UserProfile({ user, onUpdate, onClose }) {
   return (
     <div className="user-profile-overlay" onClick={onClose}>
       <div className="user-profile-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="user-profile-header">
-          <h2>User Profile</h2>
+        <div className="user-profile-hero">
+          <button
+            type="button"
+            className="user-profile-avatar"
+            onClick={() => avatarInputRef.current?.focus()}
+          >
+            <Avatar user={{ ...user, profile: profileData.profile }} size={72} isOwner />
+            <span className="avatar-edit-hint">Edit</span>
+          </button>
+          <div className="user-profile-hero-info">
+            <div className="user-profile-name">{profileData.name || 'Your name'}</div>
+            <div className="user-profile-role">
+              {workspaceRole || 'Member'} · {workspace?.name || 'Workspace'}
+            </div>
+            <div className="user-profile-email">{user.email}</div>
+          </div>
           <button onClick={onClose} className="btn-close">
             <FaTimes />
           </button>
@@ -89,16 +107,22 @@ function UserProfile({ user, onUpdate, onClose }) {
 
         <div className="user-profile-tabs">
           <button
-            className={activeTab === 'profile' ? 'active' : ''}
-            onClick={() => setActiveTab('profile')}
+            className={activeTab === 'identity' ? 'active' : ''}
+            onClick={() => setActiveTab('identity')}
           >
-            <FaUser /> Profile
+            <FaUser /> Identity
           </button>
           <button
-            className={activeTab === 'password' ? 'active' : ''}
-            onClick={() => setActiveTab('password')}
+            className={`tab-muted ${activeTab === 'security' ? 'active' : ''}`}
+            onClick={() => setActiveTab('security')}
           >
-            <FaLock /> Password
+            <FaLock /> Security
+          </button>
+          <button
+            className={activeTab === 'preferences' ? 'active' : ''}
+            onClick={() => setActiveTab('preferences')}
+          >
+            <FaSlidersH /> Preferences
           </button>
         </div>
 
@@ -106,19 +130,8 @@ function UserProfile({ user, onUpdate, onClose }) {
           {error && <div className="error-message">{error}</div>}
           {success && <div className="success-message">{success}</div>}
 
-          {activeTab === 'profile' && (
+          {activeTab === 'identity' && (
             <form onSubmit={handleProfileUpdate}>
-              <div className="form-group">
-                <label>Email</label>
-                <input
-                  type="email"
-                  value={user.email}
-                  disabled
-                  className="form-input"
-                />
-                <small>Email cannot be changed</small>
-              </div>
-
               <div className="form-group">
                 <label>Name</label>
                 <input
@@ -131,6 +144,22 @@ function UserProfile({ user, onUpdate, onClose }) {
               </div>
 
               <div className="form-group">
+                <label>Avatar URL</label>
+                <input
+                  ref={avatarInputRef}
+                  type="url"
+                  value={profileData.profile.avatar}
+                  onChange={(e) => setProfileData({
+                    ...profileData,
+                    profile: { ...profileData.profile, avatar: e.target.value }
+                  })}
+                  className="form-input"
+                  placeholder="https://..."
+                />
+                <small>Paste an image URL for now. Uploading comes later.</small>
+              </div>
+
+              <div className="form-group">
                 <label>Bio</label>
                 <textarea
                   value={profileData.profile.bio}
@@ -140,39 +169,41 @@ function UserProfile({ user, onUpdate, onClose }) {
                   })}
                   className="form-input"
                   rows="4"
-                  placeholder="Tell us about yourself..."
+                  placeholder="What do you work on here? A short line about you helps teammates."
                 />
               </div>
 
               <div className="form-group">
-                <label>Theme</label>
-                <select
-                  value={profileData.profile.preferences.theme}
+                <label>Badge (optional)</label>
+                <input
+                  type="text"
+                  value={profileData.profile.badge}
                   onChange={(e) => setProfileData({
                     ...profileData,
                     profile: {
                       ...profileData.profile,
-                      preferences: {
-                        ...profileData.profile.preferences,
-                        theme: e.target.value
-                      }
+                      badge: e.target.value
                     }
                   })}
                   className="form-input"
-                >
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
-                </select>
+                  placeholder="e.g. Research, Growth, PM"
+                />
               </div>
 
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? 'Saving...' : 'Save Changes'}
-              </button>
+              <div className="form-actions">
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </button>
+                {success && <span className="save-indicator">Saved ✓</span>}
+              </div>
             </form>
           )}
 
-          {activeTab === 'password' && (
+          {activeTab === 'security' && (
             <form onSubmit={handlePasswordChange}>
+              <div className="security-note">
+                Keep your account secure. Password changes apply globally.
+              </div>
               <div className="form-group">
                 <label>Current Password</label>
                 <input
@@ -208,9 +239,45 @@ function UserProfile({ user, onUpdate, onClose }) {
                 />
               </div>
 
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? 'Changing...' : 'Change Password'}
-              </button>
+              <div className="form-actions">
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Changing...' : 'Change Password'}
+                </button>
+                {success && <span className="save-indicator">Saved ✓</span>}
+              </div>
+            </form>
+          )}
+
+          {activeTab === 'preferences' && (
+            <form onSubmit={handleProfileUpdate}>
+              <div className="form-group">
+                <label>Theme</label>
+                <select
+                  value={profileData.profile.preferences.theme}
+                  onChange={(e) => setProfileData({
+                    ...profileData,
+                    profile: {
+                      ...profileData.profile,
+                      preferences: {
+                        ...profileData.profile.preferences,
+                        theme: e.target.value
+                      }
+                    }
+                  })}
+                  className="form-input"
+                >
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+                <small>More preferences are coming soon.</small>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Preferences'}
+                </button>
+                {success && <span className="save-indicator">Saved ✓</span>}
+              </div>
             </form>
           )}
         </div>

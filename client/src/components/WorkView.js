@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { FaBullseye, FaFlask, FaLightbulb } from 'react-icons/fa';
 import api from '../services/supabaseApi';
+import Avatar from './Avatar';
 import './WorkView.css';
 
 const isTodayOrOverdue = (date) => {
@@ -17,13 +19,22 @@ const isCompletedWithin24h = (updatedAt) => {
   return new Date(updatedAt).getTime() >= since;
 };
 
-function WorkView({ workspaceId, onOpenNode }) {
+function WorkView({ workspaceId, onOpenNode, users = [] }) {
+  const userById = useMemo(() => {
+    const map = {};
+    users.forEach((user) => {
+      map[user.id] = user;
+    });
+    return map;
+  }, [users]);
   const [todos, setTodos] = useState([]);
   const [collapsed, setCollapsed] = useState({
     today: false,
     upcoming: false,
     completed: true
   });
+  const [feedbackById, setFeedbackById] = useState({});
+  const feedbackMessages = ['Done.', 'Nice.', 'Step forward.', 'Good work.'];
 
   const loadTodos = async () => {
     if (!workspaceId) return;
@@ -80,55 +91,116 @@ function WorkView({ workspaceId, onOpenNode }) {
   const toggleTodo = async (todo) => {
     try {
       await api.toggleExperimentTodo(todo.id, !todo.is_done);
+      if (!todo.is_done) {
+        const message = feedbackMessages[Math.floor(Math.random() * feedbackMessages.length)];
+        setFeedbackById((prev) => ({ ...prev, [todo.id]: message }));
+        setTimeout(() => {
+          setFeedbackById((prev) => {
+            const next = { ...prev };
+            delete next[todo.id];
+            return next;
+          });
+        }, 1800);
+      }
       await loadTodos();
     } catch (error) {
       console.error('Failed to toggle todo:', error);
     }
   };
 
-  const renderGroup = (group) => (
-    <div key={group.experimentId} className="work-group">
-      <button
-        type="button"
-        className="work-group-title"
-        onClick={() => onOpenNode?.(`test:${group.experimentId}`)}
-      >
-        <div>{group.experimentTitle || 'Experiment'}</div>
-        <div className="work-group-meta">
-          {group.solutionTitle || 'Solution'}
-          {group.opportunityTitle ? ` · ${group.opportunityTitle}` : ''}
-          {group.outcomeTitle ? ` · ${group.outcomeTitle}` : ''}
-        </div>
-      </button>
-      <div className="work-todo-list">
-        {group.todos.map((todo) => (
-          <div key={todo.id} className="work-todo-row">
-            <input
-              type="checkbox"
-              checked={todo.is_done}
-              onChange={() => void toggleTodo(todo)}
-            />
-            <button
-              type="button"
-              className="work-todo-title"
-              onClick={() => onOpenNode?.(`test:${group.experimentId}`)}
-            >
-              {todo.title}
-            </button>
-            <div className="work-todo-date">
-              {todo.due_date ? new Date(todo.due_date).toLocaleDateString() : '—'}
-            </div>
+  const renderGroup = (group) => {
+    const ownerUser =
+      userById[group.todos?.[0]?.owner_id || group.todos?.[0]?.owner || group.todos?.[0]?.assignee_id] ||
+      null;
+    return (
+      <div key={group.experimentId} className="work-group">
+        <button
+          type="button"
+          className="work-group-title"
+          onClick={() => onOpenNode?.(`test:${group.experimentId}`)}
+        >
+          <div>{group.experimentTitle || 'Experiment'}</div>
+          <div className="work-group-meta">
+            <span className="work-meta-item">
+              <FaFlask /> {group.solutionTitle || 'Solution'}
+            </span>
+            {group.opportunityTitle && (
+              <span className="work-meta-item">
+                <FaLightbulb /> {group.opportunityTitle}
+              </span>
+            )}
+            {group.outcomeTitle && (
+              <span className="work-meta-item">
+                <FaBullseye /> {group.outcomeTitle}
+              </span>
+            )}
           </div>
-        ))}
+        </button>
+        {ownerUser && (
+          <div className="work-group-owner">
+            <Avatar user={ownerUser} size={24} isOwner />
+          </div>
+        )}
+        <div className="work-todo-list">
+          {group.todos.map((todo) => {
+            const assignee =
+              userById[todo.assignee_id || todo.assigneeId || todo.owner_id || todo.owner] || null;
+            return (
+              <div
+                key={todo.id}
+                className={`work-todo-row ${todo.is_done ? 'done' : ''} ${
+                  feedbackById[todo.id] ? 'just-completed' : ''
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={todo.is_done}
+                  onChange={() => void toggleTodo(todo)}
+                />
+                {assignee && <Avatar user={assignee} size={20} />}
+                <button
+                  type="button"
+                  className="work-todo-title"
+                  onClick={() => onOpenNode?.(`test:${group.experimentId}`)}
+                >
+                  {todo.title}
+                </button>
+                {feedbackById[todo.id] && (
+                  <div className="work-todo-feedback">{feedbackById[todo.id]}</div>
+                )}
+                <div className="work-todo-date">
+                  {todo.due_date ? new Date(todo.due_date).toLocaleDateString() : '—'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    );
+  };
+
+  const experimentCount = useMemo(
+    () => new Set(todos.map((todo) => todo.experiment_id)).size,
+    [todos]
   );
+  const taskCount = openTodos.length;
 
   return (
     <div className="work-view">
+      <div className="work-hero">
+        <div className="work-hero-title">Today is yours.</div>
+        <div className="work-hero-subtitle">
+          {experimentCount ? `${experimentCount} experiment${experimentCount === 1 ? '' : 's'}` : 'No experiments yet'}
+          {' · '}
+          {taskCount ? `${taskCount} task${taskCount === 1 ? '' : 's'}` : 'Nothing urgent right now'}
+        </div>
+        <div className="work-hero-message">
+          Keep it calm and focused. Small steps count.
+        </div>
+      </div>
       <div className="work-section work-section-primary">
         <button type="button" className="work-section-header" onClick={() => setCollapsed((prev) => ({ ...prev, today: !prev.today }))}>
-          <span>Today</span>
+          <span>Today’s focus</span>
           <span>{collapsed.today ? '+' : '–'}</span>
         </button>
         {!collapsed.today && (
@@ -136,7 +208,7 @@ function WorkView({ workspaceId, onOpenNode }) {
             {grouped(sections.today).map(renderGroup)}
             {sections.today.length === 0 && (
               <div className="work-empty">
-                Nothing urgent today. Pick an experiment below to make progress.
+                A calm day. If you want, open a test or sketch the next experiment.
               </div>
             )}
           </div>
@@ -145,29 +217,33 @@ function WorkView({ workspaceId, onOpenNode }) {
 
       <div className="work-section">
         <button type="button" className="work-section-header" onClick={() => setCollapsed((prev) => ({ ...prev, upcoming: !prev.upcoming }))}>
-          <span>Upcoming</span>
+          <span>Coming up</span>
           <span>{collapsed.upcoming ? '+' : '–'}</span>
         </button>
         {!collapsed.upcoming && (
           <div className="work-section-content">
             {grouped(sections.upcoming).map(renderGroup)}
-            {sections.upcoming.length === 0 && <div className="work-empty">No upcoming to-dos.</div>}
+            {sections.upcoming.length === 0 && (
+              <div className="work-empty">Nothing scheduled yet. That’s okay.</div>
+            )}
           </div>
         )}
       </div>
 
       <div className="work-section work-section-muted">
         <button type="button" className="work-section-header" onClick={() => setCollapsed((prev) => ({ ...prev, completed: !prev.completed }))}>
-          <span>Completed today</span>
+          <span>Nice work ✨</span>
           <span>{collapsed.completed ? '+' : '–'}</span>
         </button>
         {!collapsed.completed && (
           <div className="work-section-content">
             <div className="work-completed-message">
-              You completed {completedToday.length} tasks today.
+              You moved {completedToday.length} task{completedToday.length === 1 ? '' : 's'} forward today.
             </div>
             {grouped(completedToday).map(renderGroup)}
-            {completedToday.length === 0 && <div className="work-empty">No completions in the last 24h.</div>}
+            {completedToday.length === 0 && (
+              <div className="work-empty">No completions yet. There’s time.</div>
+            )}
           </div>
         )}
       </div>
