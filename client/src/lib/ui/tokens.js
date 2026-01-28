@@ -1,9 +1,14 @@
 export const ostTokens = {
+  brand: {
+    900: '#0b3d39',
+    600: '#0f766e',
+    100: '#d9f2ec'
+  },
   type: {
-    outcome: { accent: '#0f766e', tint: 'rgba(15, 118, 110, 0.08)' },
-    opportunity: { accent: '#d97706', tint: 'rgba(217, 119, 6, 0.08)' },
-    solution: { accent: '#4f46e5', tint: 'rgba(79, 70, 229, 0.08)' },
-    test: { accent: '#7c3aed', tint: 'rgba(124, 58, 237, 0.08)' }
+    outcome: { accent: '#3f8f7a', tint: 'rgba(63, 143, 122, 0.08)' },
+    opportunity: { accent: '#c9822e', tint: 'rgba(201, 130, 46, 0.08)' },
+    solution: { accent: '#4d6fb3', tint: 'rgba(77, 111, 179, 0.08)' },
+    test: { accent: '#7c6ad6', tint: 'rgba(124, 106, 214, 0.08)' }
   },
   neutral: {
     text: '#1f2937',
@@ -15,10 +20,10 @@ export const ostTokens = {
     radius: 12,
     shadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
     shadowHover: '0 4px 10px rgba(15, 23, 42, 0.12)',
-    shadowSelected: '0 8px 16px rgba(15, 23, 42, 0.18)'
+    shadowSelected: '0 0 0 1px rgba(15, 118, 110, 0.45), 0 10px 20px rgba(15, 23, 42, 0.12)'
   },
   edge: {
-    base: { stroke: 'rgba(100, 116, 139, 0.5)', width: 1.2 },
+    base: { stroke: 'rgba(100, 116, 139, 0.45)', width: 1.2 },
     active: { width: 2.4 }
   },
   canvas: {
@@ -31,8 +36,14 @@ export const ostTokens = {
   },
   status: {
     idea: '#94a3b8',
-    in_progress: '#f59e0b',
-    validated: '#10b981',
-    killed: '#ef4444'
+    in_progress: '#c0822e',
+    validated: '#3f8f7a',
+    killed: '#94a3b8',
+    planned: '#94a3b8',
+    running: '#0f766e',
+    live: '#0f766e',
+    done_pass: '#3f8f7a',
+    done_iterate: '#64748b',
+    done_kill: '#9ca3af'
   }
 };

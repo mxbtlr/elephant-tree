@@ -87,7 +87,7 @@ function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, o
   }, [outcomes, evidenceByTest, nodeOverrides]);
 
   return (
-    <div className="tree-view">
+    <div className={`tree-view ${viewMode === 'list' ? 'tree-view-list' : 'tree-view-canvas'}`}>
       <div className="context-bar">
         <span>Workspace · {workspaceName || '—'}</span>
         <span>·</span>

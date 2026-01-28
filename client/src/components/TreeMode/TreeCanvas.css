@@ -1,22 +1,27 @@
 .tree-canvas-card {
-  background: var(--treeflow-card);
-  border: 1px solid var(--treeflow-border-light);
-  border-radius: 16px;
-  box-shadow: var(--treeflow-shadow);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   flex: 1;
   height: 100%;
-  min-height: 70vh;
+  min-height: 0;
 }
 
 .tree-canvas-body {
   flex: 1;
   height: 100%;
   min-height: 0;
-  background: #fff;
+  background: transparent;
   position: relative;
+}
+
+.tree-canvas-body .react-flow {
+  width: 100%;
+  height: 100%;
 }
 
 .tree-empty-state {
@@ -61,16 +66,18 @@
   flex-direction: column;
   gap: 6px;
   position: relative;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .tree-node.selected {
-  border-color: var(--node-accent);
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.18);
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.5), 0 10px 20px rgba(15, 23, 42, 0.12);
 }
 
 .tree-node:hover {
-  border-color: rgba(15, 23, 42, 0.12);
-  box-shadow: var(--treeflow-shadow-hover);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
 }
 
 .tree-node.dimmed {
@@ -143,6 +150,12 @@
   padding: 4px 6px;
 }
 
+.tree-node-input:focus {
+  outline: none;
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
 .tree-node-badges {
   display: flex;
   gap: 6px;
@@ -165,22 +178,22 @@
 }
 
 .tree-node-badge.status-validated {
-  background: #e9f7ef;
-  color: #2e7d32;
+  background: rgba(63, 143, 122, 0.12);
+  color: #2f6f5d;
 }
 
 .tree-node-badge.status-in_progress {
-  background: #fff4e5;
-  color: #ef6c00;
+  background: rgba(201, 130, 46, 0.16);
+  color: #8c5a1f;
 }
 
 .tree-node-badge.status-killed {
-  background: #fdecea;
-  color: #c62828;
+  background: rgba(148, 163, 184, 0.18);
+  color: #64748b;
 }
 
 .tree-node-badge.status-idea {
-  background: #f1f5f9;
+  background: rgba(148, 163, 184, 0.18);
   color: #64748b;
 }
 
@@ -201,18 +214,50 @@
 }
 
 .tree-node-pill-type {
-  background: #eef2ff;
-  color: #4338ca;
+  background: color-mix(in srgb, var(--node-accent) 14%, white);
+  color: var(--node-accent);
 }
 
 .tree-node-pill-status {
-  background: #e0f2fe;
-  color: #0369a1;
+  background: rgba(148, 163, 184, 0.18);
+  color: #64748b;
 }
 
 .tree-node-pill-decision {
-  background: #fef3c7;
-  color: #92400e;
+  background: rgba(148, 163, 184, 0.18);
+  color: #64748b;
+}
+
+.tree-node-pill-status.status-planned {
+  background: rgba(148, 163, 184, 0.18);
+  color: #64748b;
+}
+
+.tree-node-pill-status.status-running,
+.tree-node-pill-status.status-live {
+  background: rgba(15, 118, 110, 0.14);
+  color: #0f766e;
+  box-shadow: 0 0 6px rgba(15, 118, 110, 0.25);
+}
+
+.tree-node-pill-status.status-done {
+  background: rgba(63, 143, 122, 0.12);
+  color: #2f6f5d;
+}
+
+.tree-node-pill-decision.decision-pass {
+  background: rgba(63, 143, 122, 0.12);
+  color: #2f6f5d;
+}
+
+.tree-node-pill-decision.decision-iterate {
+  background: rgba(100, 116, 139, 0.18);
+  color: #475569;
+}
+
+.tree-node-pill-decision.decision-kill {
+  background: rgba(148, 163, 184, 0.18);
+  color: #64748b;
 }
 
 .tree-node-pill-todos {
@@ -324,6 +369,32 @@
   filter: drop-shadow(0 0 4px rgba(15, 23, 42, 0.12));
 }
 
+.edge-state-planned path {
+  stroke-dasharray: 4 6;
+}
+
+.edge-state-live path {
+  stroke-dasharray: 6 8;
+}
+
+.edge-state-done_kill path {
+  opacity: 0.45;
+}
+
+.edge-live-path {
+  animation: edge-flow 5s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(15, 118, 110, 0.25));
+}
+
+@keyframes edge-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
 .tree-node-outcome {
   min-width: 240px;
   padding: 12px 14px;
@@ -346,15 +417,39 @@
 
 .tree-center-btn {
   position: absolute;
-  left: 52px;
-  bottom: 12px;
-  border: 1px solid var(--treeflow-border);
-  background: #fff;
+  left: 16px;
+  bottom: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.8);
   border-radius: 999px;
   padding: 6px 10px;
   font-size: 11px;
   cursor: pointer;
-  box-shadow: var(--treeflow-shadow);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.react-flow__controls {
+  left: 16px;
+  bottom: 54px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.react-flow__controls button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--treeflow-text);
+}
+
+.react-flow__controls button:hover {
+  background: rgba(15, 23, 42, 0.06);
 }
 
 .template-modal-backdrop {

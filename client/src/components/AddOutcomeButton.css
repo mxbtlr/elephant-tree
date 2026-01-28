@@ -3,7 +3,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: var(--ost-outcome-accent);
+  background: var(--brand-600);
   color: white;
   border: none;
   border-radius: 999px;
@@ -16,7 +16,7 @@
 
 .add-outcome-btn:hover {
   transform: none;
-  background: #0f4c47;
+  background: var(--brand-900);
 }
 
 .add-outcome-btn:disabled {

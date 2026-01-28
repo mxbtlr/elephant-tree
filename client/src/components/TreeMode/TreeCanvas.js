@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import ReactFlow, { Background, Controls, useEdgesState, useNodesState } from 'reactflow';
+import ReactFlow, {
+  Background,
+  BaseEdge,
+  Controls,
+  getSmoothStepPath,
+  useEdgesState,
+  useNodesState
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 import OutcomeNode from './nodes/OutcomeNode';
 import OpportunityNode from './nodes/OpportunityNode';
@@ -20,6 +27,45 @@ const nodeTypes = {
   solution: SolutionNode,
   test: TestNode,
   overflow: OverflowNode
+};
+
+const EDGE_STATE_STYLES = {
+  default: { stroke: ostTokens.edge.base.stroke, strokeWidth: 1.2 },
+  draft: { stroke: 'rgba(100, 116, 139, 0.32)', strokeWidth: 1.1 },
+  planned: { stroke: ostTokens.status.planned, strokeWidth: 1.1, strokeDasharray: '4 6' },
+  live: { stroke: ostTokens.status.live, strokeWidth: 1.4, strokeDasharray: '6 8' },
+  done_pass: { stroke: ostTokens.status.done_pass, strokeWidth: 1.4 },
+  done_iterate: { stroke: ostTokens.status.done_iterate, strokeWidth: 1.3 },
+  done_kill: { stroke: ostTokens.status.done_kill, strokeWidth: 1.1, opacity: 0.5 }
+};
+
+const getEdgeState = (targetNode) => {
+  if (!targetNode || targetNode.type !== 'test') return 'default';
+  const status = (targetNode.testStatus || '').toLowerCase();
+  const decision = (targetNode.resultDecision || '').toLowerCase();
+  if (status === 'running' || status === 'live') return 'live';
+  if (status === 'planned') return 'planned';
+  const isDone = status === 'done' || status === 'completed';
+  if ((isDone || decision) && decision === 'pass') return 'done_pass';
+  if ((isDone || decision) && decision === 'iterate') return 'done_iterate';
+  if ((isDone || decision) && decision === 'kill') return 'done_kill';
+  return 'draft';
+};
+
+function LiveEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd }) {
+  const [edgePath] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition
+  });
+  return <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} className="edge-live-path" />;
+}
+
+const edgeTypes = {
+  live: LiveEdge
 };
 
 function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) {
@@ -139,19 +185,33 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
   const rawEdges = useMemo(() => {
     return visibleEdges.map((edge) => {
       const sourceType = tree.nodesByKey[edge.source]?.type;
+      const targetNode = tree.nodesByKey[edge.target];
+      const edgeState = getEdgeState(targetNode);
       const accent = sourceType ? ostTokens.type[sourceType]?.accent : null;
       const isActive = activeKey ? activePath.edges.has(edge.id) : false;
+      const baseStyle = EDGE_STATE_STYLES[edgeState] || EDGE_STATE_STYLES.default;
+      const resolvedStroke = isActive ? accent || baseStyle.stroke : baseStyle.stroke;
+      const resolvedWidth = isActive
+        ? Math.max(baseStyle.strokeWidth || 1, ostTokens.edge.active.width)
+        : baseStyle.strokeWidth || ostTokens.edge.base.width;
       return {
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        type: 'smoothstep',
+        type: edgeState === 'live' ? 'live' : 'smoothstep',
         animated: false,
         style: {
-          stroke: isActive ? accent || ostTokens.edge.base.stroke : ostTokens.edge.base.stroke,
-          strokeWidth: isActive ? ostTokens.edge.active.width : ostTokens.edge.base.width
+          ...baseStyle,
+          stroke: resolvedStroke,
+          strokeWidth: resolvedWidth
         },
-        className: activeKey && !isActive ? 'edge-dimmed' : isActive ? 'edge-active' : ''
+        className: [
+          `edge-state-${edgeState}`,
+          activeKey && !isActive ? 'edge-dimmed' : '',
+          isActive ? 'edge-active' : ''
+        ]
+          .filter(Boolean)
+          .join(' ')
       };
     });
   }, [visibleEdges, activeKey, activePath.edges, tree.nodesByKey]);
@@ -221,6 +281,7 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
           onEdgesChange={onEdgesChange}
           onInit={setFlowInstance}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           nodesDraggable={layoutUnlocked}
           nodesConnectable={false}
           elementsSelectable={true}
@@ -229,7 +290,7 @@ function TreeCanvas({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) 
           style={{ background: ostTokens.canvas.bg }}
         >
           <Background gap={20} size={1} color={ostTokens.canvas.gridDot} />
-          <Controls showInteractive={false} />
+          <Controls showInteractive={false} position="bottom-left" />
         </ReactFlow>
         <button
           className="tree-center-btn"

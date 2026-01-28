@@ -64,10 +64,12 @@ function TreeNodeBase({ data }) {
     }
     return 'Custom';
   })();
+  const testStatusValue = (data.testStatus || 'planned').toLowerCase();
+  const testDecisionValue = (data.resultDecision || 'undecided').toLowerCase();
 
   const baseStyle = {
     background: typeTokens.tint || '#fff',
-    borderColor: isSelected ? typeTokens.accent : 'transparent',
+    borderColor: isSelected ? 'var(--brand-600)' : 'transparent',
     boxShadow: isSelected ? ostTokens.node.shadowSelected : ostTokens.node.shadow,
     '--node-accent': typeTokens.accent || '#64748b'
   };
@@ -130,10 +132,10 @@ function TreeNodeBase({ data }) {
               <span className="tree-node-pill tree-node-pill-type">
                 {testTypeLabel}
               </span>
-              <span className="tree-node-pill tree-node-pill-status">
+              <span className={`tree-node-pill tree-node-pill-status status-${testStatusValue}`}>
                 {(data.testStatus || 'planned').replace('_', ' ')}
               </span>
-              <span className="tree-node-pill tree-node-pill-decision">
+              <span className={`tree-node-pill tree-node-pill-decision decision-${testDecisionValue}`}>
                 {(data.resultDecision || 'undecided').replace('_', ' ')}
               </span>
               {typeof data.todoTotal === 'number' && data.todoTotal > 0 && (

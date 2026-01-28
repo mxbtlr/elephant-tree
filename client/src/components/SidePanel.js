@@ -23,7 +23,7 @@ const getOwnerOptions = (users) =>
     label: user.name || user.email
   }));
 
-function SidePanel({ outcomes, users, onUpdate }) {
+function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
   const {
     state: { selectedKey, nodeOverrides },
     actions: { setNodeOverride, setEvidence, setSelectedKey }
@@ -57,6 +57,8 @@ function SidePanel({ outcomes, users, onUpdate }) {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [reflection, setReflection] = useState('');
   const [decisionDraft, setDecisionDraft] = useState('pass');
+  const [activePhase, setActivePhase] = useState('context');
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [hypotheses, setHypotheses] = useState([]);
   const [isLoadingHypotheses, setIsLoadingHypotheses] = useState(false);
   const [hypothesisDraft, setHypothesisDraft] = useState('');
@@ -216,6 +218,12 @@ function SidePanel({ outcomes, users, onUpdate }) {
     setReflection('');
     setDecisionDraft(testDraft.resultDecision || 'pass');
   }, [nodeLookup?.node?.id, nodeLookup?.type, testDraft.resultDecision]);
+
+  useEffect(() => {
+    if (nodeLookup?.type !== 'test') return;
+    setActivePhase('context');
+    setIsDescriptionExpanded(false);
+  }, [nodeLookup?.node?.id, nodeLookup?.type]);
 
   useEffect(() => {
     const handleResize = (event) => {
@@ -646,7 +654,10 @@ function SidePanel({ outcomes, users, onUpdate }) {
   const isOpen = Boolean(nodeLookup?.node);
 
   return (
-    <aside className={`side-panel ${isOpen ? 'is-open' : ''}`} style={{ width: panelWidth }}>
+    <aside
+      className={`side-panel ${isDrawer ? 'side-panel-drawer' : ''} ${isOpen ? 'is-open' : ''}`}
+      style={{ width: panelWidth }}
+    >
       <div id="side-panel-resizer" className="side-panel-resizer" />
       {!isOpen && (
         <div className="side-panel-empty">Select a node to edit details.</div>
@@ -659,74 +670,488 @@ function SidePanel({ outcomes, users, onUpdate }) {
         </div>
       </div>
 
-      <div className="side-panel-field">
-        <label htmlFor="side-title">Title</label>
-        <input
-          id="side-title"
-          value={draft.title}
-          onChange={(e) => handleFieldChange('title', e.target.value, { immediate: true })}
-          onBlur={flushSave}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              flushSave();
-            }
-          }}
-          placeholder="Title"
-        />
-      </div>
+      {nodeLookup.type === 'test' ? (
+        <div className="side-panel-test">
+          <div className="side-panel-meta">
+            <div className="side-panel-field">
+              <label htmlFor="side-title">Title</label>
+              <input
+                id="side-title"
+                value={draft.title}
+                onChange={(e) => handleFieldChange('title', e.target.value, { immediate: true })}
+                onBlur={flushSave}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    flushSave();
+                  }
+                }}
+                placeholder="Title"
+              />
+            </div>
 
-      <div className="side-panel-field">
-        <label htmlFor="side-description">Description</label>
-        <textarea
-          id="side-description"
-          value={draft.description}
-          onChange={(e) => handleFieldChange('description', e.target.value)}
-          onBlur={flushSave}
-          placeholder="Add a short description"
-          rows={4}
-        />
-      </div>
+            <div className="side-panel-field side-panel-description">
+              <div className="side-panel-field-header">
+                <label htmlFor="side-description">Description</label>
+                <button
+                  type="button"
+                  className="side-panel-link"
+                  onClick={() => setIsDescriptionExpanded((prev) => !prev)}
+                >
+                  {isDescriptionExpanded ? 'Collapse' : 'Expand'}
+                </button>
+              </div>
+              <textarea
+                id="side-description"
+                value={draft.description}
+                onChange={(e) => handleFieldChange('description', e.target.value)}
+                onBlur={flushSave}
+                placeholder="Add a short description"
+                rows={isDescriptionExpanded ? 4 : 2}
+                className={isDescriptionExpanded ? '' : 'is-collapsed'}
+              />
+            </div>
 
-      <div className="side-panel-field">
-        <label htmlFor="side-status" className="side-panel-label-row">
-          Status
-          {draft.status && (
-            <span
-              className="status-chip"
-              style={{ background: ostTokens.status[draft.status] || '#94a3b8' }}
+            <div className="side-panel-row two-col">
+              <div className="side-panel-field">
+                <label htmlFor="side-status" className="side-panel-label-row">
+                  Status
+                  {draft.status && (
+                    <span
+                      className="status-chip"
+                      style={{ background: ostTokens.status[draft.status] || '#94a3b8' }}
+                    />
+                  )}
+                </label>
+                <select
+                  id="side-status"
+                  value={draft.status || ''}
+                  onChange={(e) => handleFieldChange('status', e.target.value, { immediate: true })}
+                >
+                  <option value="">No status</option>
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="side-panel-field">
+                <label htmlFor="side-owner">Owner</label>
+                <select
+                  id="side-owner"
+                  value={draft.owner || ''}
+                  onChange={(e) => handleFieldChange('owner', e.target.value, { immediate: true })}
+                >
+                  <option value="">Unassigned</option>
+                  {ownerOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="phase-grid">
+            <div className="stepper-line" aria-hidden="true" />
+            <div className={`stepper-dot ${activePhase === 'context' ? 'active' : ''}`} />
+            <div
+              className="experiment-section phase-card phase-card-context"
+              onFocusCapture={() => setActivePhase('context')}
+              onClick={() => setActivePhase('context')}
+            >
+              <div className="experiment-section-header">
+                <div>
+                  <div className="experiment-section-title">Context</div>
+                  <div className="experiment-section-subtitle">
+                    Define the hypothesis and success criteria.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="experiment-section-toggle"
+                  onClick={() => setIsThinkOpen((prev) => !prev)}
+                >
+                  <span>{isThinkOpen ? 'Collapse' : 'Expand'}</span>
+                </button>
+              </div>
+              {isThinkOpen && (
+                <div className="experiment-section-content">
+                  <div className="side-panel-section">
+                    <div className="side-panel-section-title">Testing hypothesis</div>
+                    <div className="read-only-box">
+                      {(hypotheses || []).find((item) => item.id === nodeLookup.node.hypothesisId)
+                        ?.statement || 'No hypothesis linked.'}
+                    </div>
+                    {nodeLookup.opportunity?.id && (
+                      <button
+                        type="button"
+                        className="hypothesis-link"
+                        onClick={() => setSelectedKey(getNodeKey('opportunity', nodeLookup.opportunity.id))}
+                      >
+                        View parent opportunity
+                      </button>
+                    )}
+                  </div>
+                  <div className="side-panel-section">
+                    <div className="side-panel-section-title">Test type</div>
+                    <select
+                      value={testDraft.testType || 'custom'}
+                      onChange={(event) => handleTestTypeChange(event.target.value)}
+                    >
+                      <option value="interview">Interview</option>
+                      <option value="cold_outreach">Cold Outreach</option>
+                      <option value="pricing">Pricing</option>
+                      <option value="prototype_usability">Prototype Usability</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                  <div className="side-panel-section">
+                    <div className="side-panel-section-title">Hypothesis</div>
+                    <select
+                      value={testDraft.hypothesisId || ''}
+                      onChange={(event) => handleTestHypothesisChange(event.target.value)}
+                    >
+                      <option value="">None</option>
+                      {(hypotheses || []).map((hypothesis) => (
+                        <option key={hypothesis.id} value={hypothesis.id}>
+                          {hypothesis.statement}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="side-panel-section">
+                    <div className="side-panel-section-title">Success Criteria</div>
+                    <div className="side-panel-field">
+                      <label htmlFor="criteria-pass">Pass</label>
+                      <textarea
+                        id="criteria-pass"
+                        value={testDraft.successCriteria?.pass || ''}
+                        onChange={(e) => handleSuccessCriteriaChange('pass', e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                    <div className="side-panel-field">
+                      <label htmlFor="criteria-iterate">Iterate</label>
+                      <textarea
+                        id="criteria-iterate"
+                        value={testDraft.successCriteria?.iterate || ''}
+                        onChange={(e) => handleSuccessCriteriaChange('iterate', e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                    <div className="side-panel-field">
+                      <label htmlFor="criteria-kill">Kill</label>
+                      <textarea
+                        id="criteria-kill"
+                        value={testDraft.successCriteria?.kill || ''}
+                        onChange={(e) => handleSuccessCriteriaChange('kill', e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className={`stepper-dot ${activePhase === 'do' ? 'active' : ''}`} />
+            <div
+              className="experiment-section experiment-section-primary phase-card phase-card-do"
+              onFocusCapture={() => setActivePhase('do')}
+              onClick={() => setActivePhase('do')}
+            >
+              <div className="experiment-section-header">
+                <div>
+                  <div className="experiment-section-title">Do</div>
+                  <div className="experiment-section-subtitle">
+                    {todos.filter((item) => item.is_done).length} of {todos.length} completed
+                  </div>
+                </div>
+                {todos.length > 0 && todos.every((item) => item.is_done) && (
+                  <div className="experiment-section-hint">Ready to decide</div>
+                )}
+              </div>
+              <div className="side-panel-section">
+                <div className="todo-input-row">
+                  <input
+                    value={todoDraft}
+                    placeholder="Add a to-do..."
+                    maxLength={120}
+                    onChange={(event) => setTodoDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void handleCreateTodo();
+                      }
+                    }}
+                  />
+                  <button type="button" onClick={() => void handleCreateTodo()}>
+                    Add
+                  </button>
+                </div>
+                {isLoadingTodos ? (
+                  <div className="side-panel-empty">Loading to-dos…</div>
+                ) : (
+                  <div className="todo-list">
+                    {todos.map((todo) => (
+                      <div key={todo.id} className="todo-row">
+                        <input
+                          type="checkbox"
+                          checked={todo.is_done}
+                          onChange={() => void handleToggleTodo(todo)}
+                        />
+                        {editingTodoId === todo.id ? (
+                          <input
+                            className="todo-title-input"
+                            value={editingTodoTitle}
+                            onChange={(event) => setEditingTodoTitle(event.target.value)}
+                            onBlur={() => void handleUpdateTodoTitle(todo.id, editingTodoTitle)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                void handleUpdateTodoTitle(todo.id, editingTodoTitle);
+                              }
+                              if (event.key === 'Escape') {
+                                setEditingTodoId(null);
+                                setEditingTodoTitle('');
+                              }
+                            }}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className={`todo-title ${todo.is_done ? 'done' : ''}`}
+                            onClick={() => {
+                              setEditingTodoId(todo.id);
+                              setEditingTodoTitle(todo.title);
+                            }}
+                          >
+                            {todo.title}
+                          </button>
+                        )}
+                        <input
+                          type="date"
+                          value={todo.due_date || ''}
+                          onChange={(event) => void handleUpdateTodoDueDate(todo.id, event.target.value)}
+                        />
+                        <div className="todo-actions">
+                          <button
+                            type="button"
+                            onClick={() => void handleMoveTodo(todo.id, 'up')}
+                            disabled={todos[0]?.id === todo.id}
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleMoveTodo(todo.id, 'down')}
+                            disabled={todos[todos.length - 1]?.id === todo.id}
+                          >
+                            ▼
+                          </button>
+                          <button type="button" onClick={() => void handleDeleteTodo(todo.id)}>
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {todos.length === 0 && (
+                      <div className="side-panel-empty">No to-dos yet.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className={`stepper-dot ${activePhase === 'decide' ? 'active' : ''}`} />
+            <div
+              className={`experiment-section experiment-section-decision phase-card phase-card-decide ${
+                isDecisionEnabled ? 'enabled' : 'disabled'
+              }`}
+              onFocusCapture={() => setActivePhase('decide')}
+              onClick={() => setActivePhase('decide')}
+            >
+              <div className="experiment-section-header">
+                <div>
+                  <div className="experiment-section-title">Decide</div>
+                  {!isDecisionEnabled && (
+                    <div className="phase-helper">
+                      Complete todos or add evidence to decide.
+                    </div>
+                  )}
+                </div>
+                <div className="phase-actions">
+                  {isDecisionEnabled && <span className="phase-chip">Ready</span>}
+                  <button
+                    type="button"
+                    className="experiment-complete-btn"
+                    disabled={!isDecisionEnabled}
+                    onClick={() => setShowCompleteModal(true)}
+                  >
+                    Complete Experiment
+                  </button>
+                </div>
+              </div>
+              <div className="experiment-section-content">
+                <div className="side-panel-section">
+                  <div className="side-panel-section-title">Evidence</div>
+                  <div className="side-panel-inline">
+                    {['quote', 'kpi', 'link', 'note'].map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        className="side-panel-chip"
+                        onClick={() => handleAddEvidence(type)}
+                      >
+                        + {type}
+                      </button>
+                    ))}
+                  </div>
+                  {isLoadingEvidence ? (
+                    <div className="side-panel-empty">Loading evidence…</div>
+                  ) : (
+                    evidenceItems.map((item) => (
+                      <div key={item.id} className="evidence-row">
+                        <select
+                          value={item.type}
+                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, type: e.target.value })}
+                        >
+                          <option value="quote">Quote</option>
+                          <option value="kpi">KPI</option>
+                          <option value="screenshot">Screenshot</option>
+                          <option value="link">Link</option>
+                          <option value="note">Note</option>
+                          <option value="call_summary">Call Summary</option>
+                        </select>
+                        <input
+                          value={item.content}
+                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, content: e.target.value })}
+                        />
+                        <select
+                          value={item.quality}
+                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, quality: e.target.value })}
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                        </select>
+                        <select
+                          value={item.source}
+                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, source: e.target.value })}
+                        >
+                          <option value="customer">Customer</option>
+                          <option value="analytics">Analytics</option>
+                          <option value="internal">Internal</option>
+                          <option value="sales">Sales</option>
+                        </select>
+                        <button type="button" onClick={() => handleDeleteEvidence(item.id)}>
+                          Delete
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="side-panel-field">
+                  <label htmlFor="result-decision">Result Decision</label>
+                  <select
+                    id="result-decision"
+                    value={testDraft.resultDecision || ''}
+                    onChange={(e) => handleResultDecisionChange(e.target.value || null)}
+                  >
+                    <option value="">Not decided</option>
+                    <option value="pass">Pass</option>
+                    <option value="iterate">Iterate</option>
+                    <option value="kill">Kill</option>
+                  </select>
+                </div>
+
+                <div className="side-panel-field">
+                  <label htmlFor="result-summary">Result Summary</label>
+                  <textarea
+                    id="result-summary"
+                    value={testDraft.resultSummary}
+                    onChange={(e) => handleTestFieldChange('resultSummary', e.target.value)}
+                    rows={2}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="side-panel-field">
+            <label htmlFor="side-title">Title</label>
+            <input
+              id="side-title"
+              value={draft.title}
+              onChange={(e) => handleFieldChange('title', e.target.value, { immediate: true })}
+              onBlur={flushSave}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  flushSave();
+                }
+              }}
+              placeholder="Title"
             />
-          )}
-        </label>
-        <select
-          id="side-status"
-          value={draft.status || ''}
-          onChange={(e) => handleFieldChange('status', e.target.value, { immediate: true })}
-        >
-          <option value="">No status</option>
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          </div>
 
-      <div className="side-panel-field">
-        <label htmlFor="side-owner">Owner</label>
-        <select
-          id="side-owner"
-          value={draft.owner || ''}
-          onChange={(e) => handleFieldChange('owner', e.target.value, { immediate: true })}
-        >
-          <option value="">Unassigned</option>
-          {ownerOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="side-panel-field">
+            <label htmlFor="side-description">Description</label>
+            <textarea
+              id="side-description"
+              value={draft.description}
+              onChange={(e) => handleFieldChange('description', e.target.value)}
+              onBlur={flushSave}
+              placeholder="Add a short description"
+              rows={4}
+            />
+          </div>
+
+          <div className="side-panel-field">
+            <label htmlFor="side-status" className="side-panel-label-row">
+              Status
+              {draft.status && (
+                <span
+                  className="status-chip"
+                  style={{ background: ostTokens.status[draft.status] || '#94a3b8' }}
+                />
+              )}
+            </label>
+            <select
+              id="side-status"
+              value={draft.status || ''}
+              onChange={(e) => handleFieldChange('status', e.target.value, { immediate: true })}
+            >
+              <option value="">No status</option>
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="side-panel-field">
+            <label htmlFor="side-owner">Owner</label>
+            <select
+              id="side-owner"
+              value={draft.owner || ''}
+              onChange={(e) => handleFieldChange('owner', e.target.value, { immediate: true })}
+            >
+              <option value="">Unassigned</option>
+              {ownerOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
 
       {nodeLookup.type === 'opportunity' && (
         <div className="side-panel-section">
@@ -852,7 +1277,7 @@ function SidePanel({ outcomes, users, onUpdate }) {
         </div>
       )}
 
-      {nodeLookup.type === 'test' && (
+      {false && (
         <>
           <div className="experiment-section">
             <button
@@ -1185,6 +1610,43 @@ function SidePanel({ outcomes, users, onUpdate }) {
             </div>
           )}
         </>
+      )}
+
+      {nodeLookup.type === 'test' && showCompleteModal && (
+        <div className="experiment-modal-backdrop" onClick={() => setShowCompleteModal(false)}>
+          <div className="experiment-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="experiment-modal-header">Complete experiment</div>
+            <div className="side-panel-field">
+              <label htmlFor="experiment-reflection">What did we learn?</label>
+              <textarea
+                id="experiment-reflection"
+                value={reflection}
+                onChange={(event) => setReflection(event.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="side-panel-field">
+              <label htmlFor="experiment-decision">Decision</label>
+              <select
+                id="experiment-decision"
+                value={decisionDraft}
+                onChange={(event) => setDecisionDraft(event.target.value)}
+              >
+                <option value="pass">Pass</option>
+                <option value="iterate">Iterate</option>
+                <option value="kill">Kill</option>
+              </select>
+            </div>
+            <div className="experiment-modal-actions">
+              <button type="button" onClick={() => setShowCompleteModal(false)}>
+                Cancel
+              </button>
+              <button type="button" className="primary" onClick={() => void handleCompleteExperiment()}>
+                Confirm decision
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="side-panel-actions">
