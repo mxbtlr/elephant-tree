@@ -17,11 +17,12 @@ const groupOutcomes = (outcomes) => {
   return grouped;
 };
 
-function TreeModeView({ outcomes, onUpdate, users, confidenceMap, onAddOutcome }) {
+function TreeModeView({ outcomes, treeStructure = 'classic', onUpdate, users, confidenceMap, onAddOutcome }) {
   return (
     <div className="tree-mode-view">
       <TreeCanvas
         outcomes={outcomes}
+        treeStructure={treeStructure}
         onUpdate={onUpdate}
         users={users}
         confidenceMap={confidenceMap}

@@ -125,7 +125,7 @@ function ListNode({
         )}
 
         {(node.type === 'opportunity' || node.type === 'solution') && confidenceMap?.[node.key] && (
-          <ConfidenceBadge confidence={confidenceMap[node.key]} />
+          <ConfidenceBadge confidence={confidenceMap[node.key]} showExplanation />
         )}
 
         {canAdd && (

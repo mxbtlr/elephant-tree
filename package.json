@@ -9,12 +9,12 @@
     "client": "cd client && npm start",
     "install-all": "npm install && cd server && npm install && cd ../client && npm install",
     "build": "cd client && npm run build",
-    "test-supabase": "node scripts/test-supabase-connection.js"
+    "test": "npm run test:client && npm run test:server",
+    "test:client": "cd client && npm test -- --watchAll=false",
+    "test:server": "cd server && npm test",
+    "test:supabase": "node scripts/test-supabase-connection.js"
   },
-  "keywords": [
-    "ost",
-    "opportunity-solutions-tree"
-  ],
+  "keywords": ["ost", "opportunity-solutions-tree"],
   "author": "",
   "license": "MIT",
   "devDependencies": {

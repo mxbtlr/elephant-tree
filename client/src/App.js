@@ -10,14 +10,13 @@ import TodoSidebar from './components/Todos/TodoSidebar';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
 import SidePanel from './components/SidePanel';
-import DashboardView from './components/DashboardView';
 import CommandPalette from './components/CommandPalette';
 import { AvatarGroup } from './components/Avatar';
 import { FaCheckCircle } from 'react-icons/fa';
 import api from './services/supabaseApi';
 import { supabase } from './services/supabase';
 import { DEFAULT_TITLES, getNodeKey, parseNodeKey } from './lib/ostTypes';
-import { buildOstForest } from './lib/ostTree';
+import { buildOstForest, findNodeByKey } from './lib/ostTree';
 import { useOstStore } from './store/useOstStore';
 
 function App() {
@@ -63,9 +62,10 @@ function App() {
   const lastWorkspaceSwitchRef = useRef(0);
   const activityThrottleRef = useRef(0);
   const {
-    state: { viewMode, selectedKey, nodeOverrides, todosById },
+    state: { viewMode, treeStructure, selectedKey, nodeOverrides, todosById },
     actions: {
       setViewMode,
+      setTreeStructure,
       setNodeOverride,
       setSelectedKey,
       setRenamingKey,
@@ -154,7 +154,7 @@ function App() {
     ? activeWorkspace?.legacyTeamId || null
     : null;
   const isCanvasView = currentPage === 'tree' && viewMode === 'tree';
-  const isScrollPage = currentPage === 'dashboard';
+  const isScrollPage = false;
   const activeUserIds = useMemo(() => {
     const now = Date.now();
     return new Set(
@@ -200,15 +200,15 @@ function App() {
   }, [activeDecisionSpaceId, outcomesForWorkspace]);
 
   const nodeTitleMap = useMemo(() => {
-    const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {});
+    const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {}, { treeStructure });
     const map = {};
     Object.values(forest.nodesByKey || {}).forEach((node) => {
       map[node.key] = node.title;
     });
     return map;
-  }, [outcomesForDecisionSpace, nodeOverrides]);
+  }, [outcomesForDecisionSpace, nodeOverrides, treeStructure]);
   const testMetaById = useMemo(() => {
-    const forest = buildOstForest(outcomesForWorkspace || [], nodeOverrides || {});
+    const forest = buildOstForest(outcomesForWorkspace || [], nodeOverrides || {}, { treeStructure });
     const map = {};
     const userById = {};
     users.forEach((item) => {
@@ -231,7 +231,7 @@ function App() {
       };
     });
     return map;
-  }, [outcomesForWorkspace, nodeOverrides, users]);
+  }, [outcomesForWorkspace, nodeOverrides, users, treeStructure]);
 
   const activeDecisionSpace = useMemo(
     () => decisionSpaces.find((space) => space.id === activeDecisionSpaceId) || null,
@@ -426,7 +426,10 @@ function App() {
       window.history.replaceState({}, '', '/tree');
       return 'tree';
     }
-    if (path.startsWith('/dashboard')) return 'dashboard';
+    if (path.startsWith('/dashboard')) {
+      window.history.replaceState({}, '', '/tree');
+      return 'tree';
+    }
     return 'tree';
   };
 
@@ -628,7 +631,7 @@ function App() {
 
   const highlightTodoIds = useMemo(() => {
     if (currentPage !== 'tree') return new Set();
-    const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {});
+    const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {}, { treeStructure });
     const testIds = new Set();
     Object.values(forest.nodesByKey || {}).forEach((node) => {
       if (node.type === 'test' && node.id) {
@@ -636,7 +639,7 @@ function App() {
       }
     });
     return testIds;
-  }, [currentPage, outcomesForDecisionSpace, nodeOverrides]);
+  }, [currentPage, outcomesForDecisionSpace, nodeOverrides, treeStructure]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -669,11 +672,14 @@ function App() {
 
   useEffect(() => {
     const boardId = activeWorkspaceId || 'default';
-    const stored = localStorage.getItem(`treeflow:view:${boardId}`);
+    const storedView = localStorage.getItem(`treeflow:view:${boardId}`);
+    const storedStructure = localStorage.getItem(`treeflow:structure:${boardId}`);
     const urlView = getViewFromUrl();
-    const nextView = urlView || stored || 'tree';
-    setViewMode(nextView);
-  }, [activeWorkspaceId, setViewMode]);
+    setViewMode(urlView || storedView || 'tree');
+    if (storedStructure === 'journey' || storedStructure === 'classic') {
+      setTreeStructure(storedStructure);
+    }
+  }, [activeWorkspaceId, setViewMode, setTreeStructure]);
 
   useEffect(() => {
     const boardId = activeWorkspaceId || 'default';
@@ -681,6 +687,13 @@ function App() {
       localStorage.setItem(`treeflow:view:${boardId}`, viewMode);
     }
   }, [viewMode, activeWorkspaceId]);
+
+  useEffect(() => {
+    const boardId = activeWorkspaceId || 'default';
+    if (treeStructure) {
+      localStorage.setItem(`treeflow:structure:${boardId}`, treeStructure);
+    }
+  }, [treeStructure, activeWorkspaceId]);
 
   useEffect(() => {
     const handleCommandShortcut = (event) => {
@@ -733,14 +746,38 @@ function App() {
       let createdOutcome = null;
       const applyNodePatch = (nodeKey, changes) => {
         if (!nodeKey || !changes) return;
+        const parsed = parseNodeKey(nodeKey);
+        if (!parsed) return;
+        const { type, id } = parsed;
         const sanitized = Object.entries(changes).reduce((acc, [key, value]) => {
           if (value !== undefined) acc[key] = value;
           return acc;
         }, {});
+        const patchSolutions = (solutions) =>
+          (solutions || []).map((sol) => {
+            if (type === 'solution' && sol.id === id) {
+              return { ...sol, ...sanitized };
+            }
+            return {
+              ...sol,
+              tests: (sol.tests || []).map((test) =>
+                type === 'test' && test.id === id ? { ...test, ...sanitized } : test
+              ),
+              subSolutions: patchSolutions(sol.subSolutions)
+            };
+          });
+        const patchOpportunities = (opportunities) =>
+          (opportunities || []).map((opp) => {
+            if (type === 'opportunity' && opp.id === id) {
+              return { ...opp, ...sanitized };
+            }
+            return {
+              ...opp,
+              solutions: patchSolutions(opp.solutions),
+              subOpportunities: patchOpportunities(opp.subOpportunities)
+            };
+          });
         setOutcomes((prev) => {
-          const parsed = parseNodeKey(nodeKey);
-          if (!parsed) return prev;
-          const { type, id } = parsed;
           if (type === 'outcome') {
             return (prev || []).map((outcome) =>
               outcome.id === id ? { ...outcome, ...sanitized } : outcome
@@ -748,25 +785,7 @@ function App() {
           }
           return (prev || []).map((outcome) => ({
             ...outcome,
-            opportunities: (outcome.opportunities || []).map((opp) => {
-              if (type === 'opportunity' && opp.id === id) {
-                return { ...opp, ...sanitized };
-              }
-              return {
-                ...opp,
-                solutions: (opp.solutions || []).map((sol) => {
-                  if (type === 'solution' && sol.id === id) {
-                    return { ...sol, ...sanitized };
-                  }
-                  return {
-                    ...sol,
-                    tests: (sol.tests || []).map((test) =>
-                      type === 'test' && test.id === id ? { ...test, ...sanitized } : test
-                    )
-                  };
-                })
-              };
-            })
+            opportunities: patchOpportunities(outcome.opportunities || [])
           }));
         });
       };
@@ -865,7 +884,31 @@ function App() {
         if (payload.childType === 'opportunity' && type === 'outcome') {
           const created = await api.createOpportunity(id, {
             title: DEFAULT_TITLES.opportunity,
-            workspaceId: workspaceIdForWrite
+            workspaceId: workspaceIdForWrite,
+            journeyStage: payload.journeyStage ?? null
+          });
+          if (created?.id) setSelectedKey(getNodeKey('opportunity', created.id));
+        }
+        if (payload.childType === 'opportunity' && type === 'journey') {
+          const parts = (id || '').split(':');
+          const outcomeId = parts[0];
+          const stageId = parts[1] || null;
+          if (!outcomeId) return;
+          const created = await api.createOpportunity(outcomeId, {
+            title: DEFAULT_TITLES.opportunity,
+            workspaceId: workspaceIdForWrite,
+            journeyStage: stageId || null
+          });
+          if (created?.id) setSelectedKey(getNodeKey('opportunity', created.id));
+        }
+        if (payload.childType === 'opportunity' && type === 'opportunity') {
+          const lookup = findNodeByKey(outcomesForDecisionSpace || [], payload.parentKey);
+          const outcomeId = lookup?.root?.id;
+          if (!outcomeId) return;
+          const created = await api.createOpportunity(outcomeId, {
+            title: DEFAULT_TITLES.opportunity,
+            workspaceId: workspaceIdForWrite,
+            parentOpportunityId: id
           });
           if (created?.id) setSelectedKey(getNodeKey('opportunity', created.id));
         }
@@ -876,13 +919,24 @@ function App() {
           });
           if (created?.id) setSelectedKey(getNodeKey('solution', created.id));
         }
+        if (payload.childType === 'solution' && type === 'solution') {
+          const lookup = findNodeByKey(outcomesForDecisionSpace || [], payload.parentKey);
+          const opportunityId = lookup?.opportunity?.id;
+          if (!opportunityId) return;
+          const created = await api.createSolution(opportunityId, {
+            title: DEFAULT_TITLES.solution,
+            workspaceId: workspaceIdForWrite,
+            parentSolutionId: id
+          });
+          if (created?.id) setSelectedKey(getNodeKey('solution', created.id));
+        }
         if (payload.childType === 'test' && type === 'solution') {
           const created = await api.createTest(id, {
             title: DEFAULT_TITLES.test,
             description: '',
             testTemplate: null,
             testType: 'custom',
-            testStatus: 'planned',
+            testStatus: 'draft',
             successCriteria: null,
             timebox: null,
             workspaceId: workspaceIdForWrite
@@ -909,6 +963,26 @@ function App() {
         if (parsed.type === 'test') {
           await api.updateTest(parsed.id, { title: payload.title });
         }
+      }
+
+      if (action === 'set-confidence') {
+        shouldRefresh = false;
+        const parsed = parseNodeKey(payload.nodeKey);
+        if (!parsed) return;
+        const score = payload.score != null ? Math.min(100, Math.max(0, Number(payload.score))) : null;
+        setNodeOverride(payload.nodeKey, { confidenceScore: score });
+        if (parsed.type === 'opportunity') {
+          await api.updateOpportunity(parsed.id, { confidenceScore: score });
+        }
+        if (parsed.type === 'solution') {
+          await api.updateSolution(parsed.id, { confidenceScore: score });
+        }
+      }
+
+      if (action === 'promote-sub-solution') {
+        const parsed = parseNodeKey(payload.nodeKey);
+        if (!parsed || parsed.type !== 'solution') return;
+        await api.updateSolution(parsed.id, { parentSolutionId: null });
       }
 
       if (shouldRefresh) {
@@ -941,10 +1015,6 @@ function App() {
       return;
     }
     setCurrentPage(page);
-    if (page === 'dashboard') {
-      window.history.pushState({}, '', '/dashboard');
-      return;
-    }
     if (resolvedWorkspaceId) {
       window.history.pushState(
         {},
@@ -966,9 +1036,9 @@ function App() {
   };
 
   const paletteNodes = useMemo(() => {
-    const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {});
+    const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {}, { treeStructure });
     return Object.values(forest.nodesByKey || {});
-  }, [outcomesForDecisionSpace, nodeOverrides]);
+  }, [outcomesForDecisionSpace, nodeOverrides, treeStructure]);
 
   if (!user && !authInitializing) {
     return <Login onLogin={handleLogin} />;
@@ -988,7 +1058,6 @@ function App() {
         <div className="top-bar-left">
           <div className="app-title">TreeFlow</div>
           <div className="board-selector workspace-select">
-            <span className="workspace-icon" aria-hidden="true">◼︎</span>
             <select
               value={activeWorkspaceId || ''}
               onChange={(e) => {
@@ -1068,13 +1137,6 @@ function App() {
         <div className="top-bar-center">
           <div className="top-bar-nav" role="group" aria-label="Views">
             <button
-              className={`top-bar-nav-btn ${currentPage === 'dashboard' ? 'active' : ''}`}
-              type="button"
-              onClick={() => navigateToPage('dashboard')}
-            >
-              Dashboard
-            </button>
-            <button
               className={`top-bar-nav-btn ${
                 currentPage === 'tree' && viewMode === 'tree' ? 'active' : ''
               }`}
@@ -1101,13 +1163,9 @@ function App() {
           </div>
           <select
             className="top-bar-nav-select"
-            value={currentPage === 'tree' ? viewMode : currentPage}
+            value={viewMode}
             onChange={(e) => {
               const next = e.target.value;
-              if (next === 'dashboard') {
-                navigateToPage(next);
-                return;
-              }
               if (next === 'tree' || next === 'list') {
                 navigateToPage('tree');
                 setViewMode(next);
@@ -1115,7 +1173,6 @@ function App() {
             }}
             aria-label="Select view"
           >
-            <option value="dashboard">Dashboard</option>
             <option value="tree">Tree</option>
             <option value="list">List</option>
           </select>
@@ -1172,12 +1229,6 @@ function App() {
         />
       )}
       <main className={`app-main ${isScrollPage ? 'app-main-scroll' : ''}`}>
-        {currentPage === 'dashboard' && (
-          <DashboardView
-            workspaceId={resolvedWorkspaceId}
-            onOpenOpportunity={(key) => openNode(key)}
-          />
-        )}
         {currentPage === 'tree' && (
           <TreeView 
             outcomes={outcomesForDecisionSpace}
@@ -1225,6 +1276,7 @@ function App() {
         users={users}
         onUpdate={handleBoardUpdate}
         isDrawer={isCanvasView}
+        treeStructure={treeStructure}
       />
       <TeamDrawer
         isOpen={showTeamDrawer}

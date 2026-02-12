@@ -1,5 +1,55 @@
 import { supabase, getCurrentUserWithProfile, isAdmin, getUserTeamRole } from './supabase';
 
+/** Build nested opportunity tree from flat list (by parent_opportunity_id). Sorts by sort_index. */
+function nestOpportunities(flatOpps) {
+  if (!flatOpps || flatOpps.length === 0) return [];
+  const byId = new Map();
+  flatOpps.forEach((opp) => {
+    byId.set(opp.id, { ...opp, subOpportunities: [] });
+  });
+  const roots = [];
+  flatOpps.forEach((opp) => {
+    const node = byId.get(opp.id);
+    const parentId = opp.parent_opportunity_id ?? opp.parentOpportunityId;
+    if (!parentId) {
+      roots.push(node);
+    } else {
+      const parent = byId.get(parentId);
+      if (parent) parent.subOpportunities.push(node);
+      else roots.push(node);
+    }
+  });
+  const sortByIndex = (a, b) => (a.sort_index ?? a.sortIndex ?? 0) - (b.sort_index ?? b.sortIndex ?? 0);
+  roots.sort(sortByIndex);
+  roots.forEach((r) => r.subOpportunities.sort(sortByIndex));
+  return roots;
+}
+
+/** Build nested solution tree from flat list (by parent_solution_id). Sorts by sort_index. */
+function nestSolutions(flatSols) {
+  if (!flatSols || flatSols.length === 0) return [];
+  const byId = new Map();
+  flatSols.forEach((sol) => {
+    byId.set(sol.id, { ...sol, subSolutions: [] });
+  });
+  const roots = [];
+  flatSols.forEach((sol) => {
+    const node = byId.get(sol.id);
+    const parentId = sol.parent_solution_id ?? sol.parentSolutionId;
+    if (!parentId) {
+      roots.push(node);
+    } else {
+      const parent = byId.get(parentId);
+      if (parent) parent.subSolutions.push(node);
+      else roots.push(node);
+    }
+  });
+  const sortByIndex = (a, b) => (a.sort_index ?? a.sortIndex ?? 0) - (b.sort_index ?? b.sortIndex ?? 0);
+  roots.sort(sortByIndex);
+  roots.forEach((r) => r.subSolutions.sort(sortByIndex));
+  return roots;
+}
+
 const DEBUG_AUTH = false;
 let getCurrentUserPromise = null;
 
@@ -17,6 +67,8 @@ async function getCurrentUserId() {
 }
 
 export default {
+  nestSolutions,
+
   // Experiment todos
   listExperimentTodos: async (experimentId) => {
     const { data, error } = await supabase
@@ -431,25 +483,18 @@ export default {
         handleError(lastError, 'Failed to fetch outcomes');
       }
       
-      // Transform snake_case to camelCase for frontend
-      return (data || []).map(outcome => ({
-        ...outcome,
-        startDate: outcome.start_date,
-        endDate: outcome.end_date,
-        teamId: outcome.team_id,
-        workspaceId: outcome.workspace_id,
-        decisionSpaceId: outcome.decision_space_id,
-        opportunities: (outcome.opportunities || []).map(opp => ({
-          ...opp,
-          startDate: opp.start_date,
-          endDate: opp.end_date,
-          workspaceId: opp.workspace_id,
-          solutions: (opp.solutions || []).map(sol => ({
+      // Transform snake_case to camelCase, nest solutions (sub-solutions), nest opportunities (sub-opportunities)
+      return (data || []).map((outcome) => {
+        const flatOpps = (outcome.opportunities || []).map((opp) => {
+          const flatSols = (opp.solutions || []).map((sol) => ({
             ...sol,
+            parentSolutionId: sol.parent_solution_id ?? null,
+            confidenceScore: sol.confidence_score ?? null,
+            sortIndex: sol.sort_index ?? 0,
             startDate: sol.start_date,
             endDate: sol.end_date,
             workspaceId: sol.workspace_id,
-            tests: ((sol.experiments || sol.tests) || []).map(test => ({
+            tests: ((sol.experiments || sol.tests) || []).map((test) => ({
               ...test,
               startDate: test.start_date,
               endDate: test.end_date,
@@ -468,18 +513,39 @@ export default {
               workspaceId: test.workspace_id,
               kpis: test.kpis || []
             })),
-            campaigns: (sol.sprints || sol.campaigns || []).map(sprint => ({
+            campaigns: (sol.sprints || sol.campaigns || []).map((sprint) => ({
               ...sprint,
               startDate: sprint.start_date,
               endDate: sprint.end_date,
-              tasks: (sprint.tasks || []).map(task => ({
+              tasks: (sprint.tasks || []).map((task) => ({
                 ...task,
                 dueDate: task.due_date
               }))
             })) || []
-          }))
-        }))
-      }));
+          }));
+          return {
+            ...opp,
+            parentOpportunityId: opp.parent_opportunity_id ?? null,
+            journeyStage: opp.journey_stage ?? null,
+            sortIndex: opp.sort_index ?? 0,
+            confidenceScore: opp.confidence_score ?? null,
+            startDate: opp.start_date,
+            endDate: opp.end_date,
+            workspaceId: opp.workspace_id,
+            solutions: nestSolutions(flatSols)
+          };
+        });
+        const nestedOpportunities = nestOpportunities(flatOpps);
+        return {
+          ...outcome,
+          startDate: outcome.start_date,
+          endDate: outcome.end_date,
+          teamId: outcome.team_id,
+          workspaceId: outcome.workspace_id,
+          decisionSpaceId: outcome.decision_space_id,
+          opportunities: nestedOpportunities
+        };
+      });
     } catch (error) {
       console.error('Exception in getOutcomes:', error);
       return []; // Return empty array instead of throwing
@@ -630,7 +696,10 @@ export default {
           owner: data.owner || userId,
           workspace_id: data.workspaceId || null,
           start_date: data.startDate || null,
-          end_date: data.endDate || null
+          end_date: data.endDate || null,
+          parent_opportunity_id: data.parentOpportunityId ?? null,
+          journey_stage: data.journeyStage ?? null,
+          sort_index: data.sortIndex ?? 0
         })
         .select()
         .single();
@@ -665,9 +734,14 @@ export default {
       return { 
         ...opportunity, 
         solutions: [],
+        subOpportunities: [],
         startDate: opportunity.start_date,
         endDate: opportunity.end_date,
-        workspaceId: opportunity.workspace_id
+        workspaceId: opportunity.workspace_id,
+        parentOpportunityId: opportunity.parent_opportunity_id ?? null,
+        journeyStage: opportunity.journey_stage ?? null,
+        sortIndex: opportunity.sort_index ?? 0,
+        confidenceScore: opportunity.confidence_score ?? null
       };
     } catch (error) {
       console.error('Exception in createOpportunity:', error);
@@ -691,6 +765,18 @@ export default {
     if (Object.prototype.hasOwnProperty.call(data, 'workspaceId')) {
       updateData.workspace_id = data.workspaceId ?? null;
     }
+    if (Object.prototype.hasOwnProperty.call(data, 'parentOpportunityId')) {
+      updateData.parent_opportunity_id = data.parentOpportunityId ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'journeyStage')) {
+      updateData.journey_stage = data.journeyStage ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'sortIndex')) {
+      updateData.sort_index = data.sortIndex ?? 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'confidenceScore')) {
+      updateData.confidence_score = data.confidenceScore ?? null;
+    }
     Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
     
     const { data: opportunity, error } = await supabase
@@ -705,7 +791,11 @@ export default {
       ...opportunity,
       startDate: opportunity.start_date,
       endDate: opportunity.end_date,
-      workspaceId: opportunity.workspace_id
+      workspaceId: opportunity.workspace_id,
+      parentOpportunityId: opportunity.parent_opportunity_id ?? null,
+      journeyStage: opportunity.journey_stage ?? null,
+      sortIndex: opportunity.sort_index ?? 0,
+      confidenceScore: opportunity.confidence_score ?? null
     };
   },
 
@@ -721,27 +811,34 @@ export default {
   // Solutions
   createSolution: async (opportunityId, data) => {
     const userId = await getCurrentUserId();
+    const insertPayload = {
+      title: data.title,
+      description: data.description,
+      opportunity_id: opportunityId,
+      owner: data.owner || userId,
+      workspace_id: data.workspaceId || null,
+      start_date: data.startDate || null,
+      end_date: data.endDate || null
+    };
+    // Only send new columns when provided (avoids "column not in schema cache" if migration 036 not applied)
+    if (data.parentSolutionId != null) insertPayload.parent_solution_id = data.parentSolutionId;
+    if (data.sortIndex !== undefined) insertPayload.sort_index = data.sortIndex;
     const { data: solution, error } = await supabase
       .from('solutions')
-      .insert({
-        title: data.title,
-        description: data.description,
-        opportunity_id: opportunityId,
-        owner: data.owner || userId,
-        workspace_id: data.workspaceId || null,
-        start_date: data.startDate || null,
-        end_date: data.endDate || null
-      })
+      .insert(insertPayload)
       .select()
       .single();
-    
     if (error) handleError(error, 'Failed to create solution');
-    return { 
-      ...solution, 
+    return {
+      ...solution,
       tests: [],
+      subSolutions: [],
       startDate: solution.start_date,
       endDate: solution.end_date,
-      workspaceId: solution.workspace_id
+      workspaceId: solution.workspace_id,
+      parentSolutionId: solution.parent_solution_id ?? null,
+      confidenceScore: solution.confidence_score ?? null,
+      sortIndex: solution.sort_index ?? 0
     };
   },
 
@@ -757,6 +854,15 @@ export default {
     if (Object.prototype.hasOwnProperty.call(data, 'workspaceId')) {
       updateData.workspace_id = data.workspaceId ?? null;
     }
+    if (Object.prototype.hasOwnProperty.call(data, 'parentSolutionId')) {
+      updateData.parent_solution_id = data.parentSolutionId ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'confidenceScore')) {
+      updateData.confidence_score = data.confidenceScore ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'sortIndex')) {
+      updateData.sort_index = data.sortIndex ?? 0;
+    }
     Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
     
     const { data: solution, error } = await supabase
@@ -771,7 +877,10 @@ export default {
       ...solution,
       startDate: solution.start_date,
       endDate: solution.end_date,
-      workspaceId: solution.workspace_id
+      workspaceId: solution.workspace_id,
+      parentSolutionId: solution.parent_solution_id ?? null,
+      confidenceScore: solution.confidence_score ?? null,
+      sortIndex: solution.sort_index ?? 0
     };
   },
 
@@ -796,7 +905,7 @@ export default {
       test_template: data.testTemplate || null,
       type: data.testType || 'custom',
       hypothesis_id: data.hypothesisId || null,
-      test_status: data.testStatus || 'planned',
+      test_status: data.testStatus || 'draft',
       success_criteria: data.successCriteria || null,
       result_decision: data.resultDecision || null,
       result_summary: data.resultSummary || null,
@@ -867,39 +976,48 @@ export default {
   },
 
   updateTest: async (id, data) => {
-    const updateData = {
-      title: data.title,
-      description: data.description,
-      owner: data.owner,
-      status: data.status,
-      evidence: data.evidence,
-      result: data.result,
-      type: data.testType,
-      hypothesis_id: data.hypothesisId,
-      test_template: data.testTemplate,
-      test_status: data.testStatus,
-      success_criteria: data.successCriteria,
-      result_decision: data.resultDecision,
-      result_summary: data.resultSummary,
-      start_date: data.startDate ?? null,
-      end_date: data.endDate ?? null
+    // Map UI test status to experiments.status (planned|running|evaluated|archived)
+    const rawStatus = data.testStatus || data.status;
+    const hasResult = data.resultDecision && ['pass', 'iterate', 'kill'].includes(String(data.resultDecision).toLowerCase());
+    let experimentStatus = null;
+    if (hasResult) {
+      experimentStatus = 'evaluated';
+    } else if (rawStatus === 'designed' || rawStatus === 'running') {
+      experimentStatus = 'running';
+    } else if (rawStatus === 'idea' || rawStatus === 'draft' || rawStatus === 'planned' || rawStatus === 'blocked') {
+      experimentStatus = 'planned';
+    } else if (rawStatus === 'done' || rawStatus === 'completed' || rawStatus === 'evaluated' || rawStatus === 'archived') {
+      experimentStatus = rawStatus === 'archived' ? 'archived' : 'evaluated';
+    } else {
+      experimentStatus = 'planned';
+    }
+
+    const experimentUpdate = {
+      title: data.title ?? null,
+      hypothesis: data.description ?? null,
+      status: experimentStatus,
+      owner: data.owner ?? null,
+      type: data.testType ?? 'custom',
+      hypothesis_id: data.hypothesisId ?? null,
+      test_template: data.testTemplate ?? null,
+      test_status: data.testStatus ?? null,
+      success_criteria: data.successCriteria ?? null,
+      result_decision: data.resultDecision ?? null,
+      result_summary: data.resultSummary ?? null
     };
     if (Object.prototype.hasOwnProperty.call(data, 'timebox')) {
-      updateData.timebox_start = data.timebox?.start ?? null;
-      updateData.timebox_end = data.timebox?.end ?? null;
+      experimentUpdate.timebox_start = data.timebox?.start ?? null;
+      experimentUpdate.timebox_end = data.timebox?.end ?? null;
     }
-    if (Object.prototype.hasOwnProperty.call(data, 'workspaceId')) {
-      updateData.workspace_id = data.workspaceId ?? null;
-    }
-    Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
-    
+
+    // Update experiments first (getOutcomes reads from experiments); fall back to tests if table missing
     let result = await supabase
-      .from('tests')
-      .update(updateData)
+      .from('experiments')
+      .update(experimentUpdate)
       .eq('id', id)
       .select()
       .single();
-    
+
     if (result.error) {
       const message = result.error.message || '';
       const missingTable =
@@ -913,31 +1031,35 @@ export default {
         handleError(result.error, 'Failed to update test');
       }
 
-      const fallbackStatus = data.testStatus === 'done'
-        ? 'evaluated'
-        : data.testStatus || data.status || null;
-
-      const experimentUpdate = {
-        title: data.title ?? null,
-        hypothesis: data.description ?? null,
-        status: fallbackStatus,
-        owner: data.owner ?? null,
-        type: data.testType ?? 'custom',
-        hypothesis_id: data.hypothesisId ?? null,
-        test_template: data.testTemplate ?? null,
-        test_status: data.testStatus ?? null,
-        success_criteria: data.successCriteria ?? null,
-        result_decision: data.resultDecision ?? null,
-        result_summary: data.resultSummary ?? null
+      const updateData = {
+        title: data.title,
+        description: data.description,
+        owner: data.owner,
+        status: data.status,
+        evidence: data.evidence,
+        result: data.result,
+        type: data.testType,
+        hypothesis_id: data.hypothesisId,
+        test_template: data.testTemplate,
+        test_status: data.testStatus,
+        success_criteria: data.successCriteria,
+        result_decision: data.resultDecision,
+        result_summary: data.resultSummary,
+        start_date: data.startDate ?? null,
+        end_date: data.endDate ?? null
       };
       if (Object.prototype.hasOwnProperty.call(data, 'timebox')) {
-        experimentUpdate.timebox_start = data.timebox?.start ?? null;
-        experimentUpdate.timebox_end = data.timebox?.end ?? null;
+        updateData.timebox_start = data.timebox?.start ?? null;
+        updateData.timebox_end = data.timebox?.end ?? null;
       }
+      if (Object.prototype.hasOwnProperty.call(data, 'workspaceId')) {
+        updateData.workspace_id = data.workspaceId ?? null;
+      }
+      Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
       result = await supabase
-        .from('experiments')
-        .update(experimentUpdate)
+        .from('tests')
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();
@@ -948,6 +1070,8 @@ export default {
     const test = result.data;
     return {
       ...test,
+      testStatus: test.test_status ?? test.testStatus,
+      resultDecision: test.result_decision ?? test.resultDecision ?? null,
       startDate: test.start_date,
       endDate: test.end_date,
       workspaceId: test.workspace_id
@@ -961,27 +1085,72 @@ export default {
       .select('*')
       .eq('node_id', testId)
       .order('created_at', { ascending: false });
-    if (error) handleError(error, 'Failed to fetch evidence');
-    return data || [];
+    if (error) {
+      if (error.code === '42P01' || (error.message && (error.message.includes('does not exist') || error.message.includes('relation')))) {
+        console.warn('Evidence table may not exist; run migration 032_create_evidence_items.sql');
+        return [];
+      }
+      console.error('[Evidence] listEvidence failed:', testId, error.code, error.message);
+      handleError(error, 'Failed to fetch evidence');
+    }
+    const items = data || [];
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development' && items.length > 0) {
+      console.log('[Evidence] listEvidence', testId, '→', items.length, 'items');
+    }
+    return items;
   },
 
   createEvidence: async (testId, payload) => {
     const userId = await getCurrentUserId();
+    let workspaceId = payload.workspaceId ?? null;
+    if (!workspaceId) {
+      let solutionId = null;
+      const { data: exp } = await supabase.from('experiments').select('solution_id').eq('id', testId).single();
+      if (exp?.solution_id) solutionId = exp.solution_id;
+      if (!solutionId) {
+        const { data: testRow } = await supabase.from('tests').select('solution_id').eq('id', testId).single();
+        if (testRow?.solution_id) solutionId = testRow.solution_id;
+      }
+      if (solutionId) {
+        const { data: sol } = await supabase.from('solutions').select('workspace_id, opportunity_id').eq('id', solutionId).single();
+        if (sol?.workspace_id) workspaceId = sol.workspace_id;
+        else if (sol?.opportunity_id) {
+          const { data: opp } = await supabase.from('opportunities').select('outcome_id').eq('id', sol.opportunity_id).single();
+          if (opp?.outcome_id) {
+            const { data: out } = await supabase.from('outcomes').select('workspace_id').eq('id', opp.outcome_id).single();
+            if (out?.workspace_id) workspaceId = out.workspace_id;
+          }
+        }
+      }
+    }
+    const insertPayload = {
+      node_id: testId,
+      board_id: payload.boardId || null,
+      workspace_id: workspaceId,
+      type: payload.type,
+      content: payload.content || '',
+      quality: payload.quality || 'medium',
+      source: payload.source || 'customer',
+      created_by: userId
+    };
     const { data, error } = await supabase
       .from('evidence_items')
-      .insert({
-        node_id: testId,
-        board_id: payload.boardId || null,
-        workspace_id: payload.workspaceId || null,
-        type: payload.type,
-        content: payload.content,
-        quality: payload.quality,
-        source: payload.source,
-        created_by: userId
-      })
+      .insert(insertPayload)
       .select()
       .single();
-    if (error) handleError(error, 'Failed to create evidence');
+    if (error) {
+      console.error('[Evidence] createEvidence failed:', testId, error.code, error.message, insertPayload);
+      if (error.code === '42P01' || (error.message && error.message.includes('does not exist'))) {
+        throw new Error('Evidence storage is not set up. Please run database migrations (see docs or migration 032_create_evidence_items.sql).');
+      }
+      if (error.code === '42501' || (error.message && error.message.toLowerCase().includes('policy'))) {
+        throw new Error('Evidence could not be saved (permission or workspace). Ensure you are in a workspace and run migration 033 to backfill evidence workspace_id.');
+      }
+      handleError(error, 'Failed to create evidence');
+    }
+    if (data && typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+      console.log('[Evidence] createEvidence ok:', testId, '→ id', data?.id);
+    }
     return data;
   },
 

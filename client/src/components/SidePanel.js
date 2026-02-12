@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/supabaseApi';
-import { STATUS_OPTIONS, nodeTypeLabels } from '../lib/ostTypes';
+import { STATUS_OPTIONS, nodeTypeLabels, TEST_STATUS_OPTIONS, normalizeTestStatus, RESULT_DECISION_OPTIONS, normalizeResultDecision } from '../lib/ostTypes';
+import { JOURNEY_STAGES } from '../lib/journeyStages';
 import { ostTokens } from '../lib/ui/tokens';
 import { TEST_TEMPLATES, getTemplateByKey } from '../lib/tests/templates';
 import { findNodeByKey } from '../lib/ostTree';
@@ -25,9 +26,9 @@ const getOwnerOptions = (users) =>
     label: user.name || user.email
   }));
 
-function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
+function SidePanel({ outcomes, users, onUpdate, isDrawer = false, treeStructure = 'classic' }) {
   const {
-    state: { selectedKey, nodeOverrides, todosById, todoIdsByTest },
+    state: { selectedKey, nodeOverrides, todosById, todoIdsByTest, evidenceByTest },
     actions: { setNodeOverride, setEvidence, setSelectedKey, upsertTodo, removeTodo }
   } = useOstStore();
   const nodeLookup = useMemo(() => findNodeByKey(outcomes, selectedKey), [outcomes, selectedKey]);
@@ -41,7 +42,7 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
   const [testDraft, setTestDraft] = useState({
     testTemplate: null,
     testType: 'custom',
-    testStatus: 'planned',
+    testStatus: 'draft',
     successCriteria: { pass: '', iterate: '', kill: '' },
     resultDecision: null,
     hypothesisId: null,
@@ -54,9 +55,6 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
   const [editingTodoId, setEditingTodoId] = useState(null);
   const [editingTodoTitle, setEditingTodoTitle] = useState('');
   const [isThinkOpen, setIsThinkOpen] = useState(false);
-  const [showCompleteModal, setShowCompleteModal] = useState(false);
-  const [reflection, setReflection] = useState('');
-  const [decisionDraft, setDecisionDraft] = useState('pass');
   const [activePhase, setActivePhase] = useState('context');
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const userById = useMemo(() => {
@@ -81,6 +79,10 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
   });
   const saveTimeoutRef = useRef(null);
   const lastPayloadRef = useRef(null);
+  const evidenceSaveTimeoutRef = useRef(null);
+  const evidencePendingSaveRef = useRef(null); // { itemId, data } for flush on unmount
+  const evidenceItemsRef = useRef(evidenceItems);
+  evidenceItemsRef.current = evidenceItems;
   const [saveState, setSaveState] = useState('saved');
   const buildPayload = (nextDraft = draft, nextTestDraft = testDraft) => {
     if (nodeLookup?.type === 'test') {
@@ -131,9 +133,9 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
     const nextTestDraft = {
       testTemplate: effectiveNode.testTemplate || null,
       testType: effectiveNode.testType || effectiveNode.type || 'custom',
-      testStatus: effectiveNode.testStatus || effectiveNode.status || 'planned',
+      testStatus: normalizeTestStatus(effectiveNode.testStatus || effectiveNode.status || 'draft'),
       successCriteria: effectiveNode.successCriteria || { pass: '', iterate: '', kill: '' },
-      resultDecision: effectiveNode.resultDecision || null,
+      resultDecision: normalizeResultDecision(effectiveNode.resultDecision) ?? null,
       hypothesisId: effectiveNode.hypothesisId || null,
       resultSummary: effectiveNode.resultSummary || '',
       timebox: effectiveNode.timebox || { start: '', end: '' }
@@ -145,15 +147,27 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
   }, [effectiveNode]);
 
   useEffect(() => {
+    const testId = nodeLookup?.type === 'test' ? nodeLookup?.node?.id : null;
+    if (!testId) {
+      setEvidenceItems([]);
+      return;
+    }
+    // Seed from store immediately so we don't flash empty when reopening
+    const cached = evidenceByTest[testId];
+    if (cached && cached.length > 0) {
+      setEvidenceItems(cached);
+    } else {
+      setEvidenceItems([]);
+    }
     const loadEvidence = async () => {
-      if (!nodeLookup?.node || nodeLookup.type !== 'test') return;
       setIsLoadingEvidence(true);
       try {
-        const items = await api.listEvidence(nodeLookup.node.id);
+        const items = await api.listEvidence(testId);
         setEvidenceItems(items || []);
-        setEvidence(nodeLookup.node.id, items || []);
+        setEvidence(testId, items || []);
       } catch (error) {
-        console.error('Failed to load evidence:', error);
+        console.error('[Evidence] Load failed for test', testId, error);
+        // Don't overwrite state on error; we already seeded from cache at effect start
       } finally {
         setIsLoadingEvidence(false);
       }
@@ -177,6 +191,12 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       });
   }, [selectedTestId, todoIdsByTest, todosById]);
+  const hasOpenTodos = useMemo(
+    () => todos.length > 0 && todos.some((t) => !t.is_done),
+    [todos]
+  );
+  const isTestDraft = nodeLookup?.type === 'test' && normalizeTestStatus(testDraft.testStatus) === 'draft';
+  const resultDisabled = hasOpenTodos || isTestDraft;
 
   useEffect(() => {
     const loadHypotheses = async () => {
@@ -217,12 +237,6 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
     const done = todos.filter((item) => item.is_done).length;
     setNodeOverride(selectedKey, { todoDone: done, todoTotal: total });
   }, [todos, nodeLookup?.type, selectedKey, setNodeOverride]);
-
-  useEffect(() => {
-    if (nodeLookup?.type !== 'test') return;
-    setReflection('');
-    setDecisionDraft(testDraft.resultDecision || 'pass');
-  }, [nodeLookup?.node?.id, nodeLookup?.type, testDraft.resultDecision]);
 
   useEffect(() => {
     if (nodeLookup?.type !== 'test') return;
@@ -365,17 +379,10 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
   };
 
   const handleResultDecisionChange = (value) => {
-    const next = {
-      ...testDraft,
-      resultDecision: value,
-      testStatus: value && testDraft.testStatus !== 'done' ? 'done' : testDraft.testStatus
-    };
+    const next = { ...testDraft, resultDecision: value };
     setTestDraft(next);
     if (selectedKey) {
-      setNodeOverride(selectedKey, {
-        resultDecision: value,
-        testStatus: next.testStatus
-      });
+      setNodeOverride(selectedKey, { resultDecision: value });
     }
     const payload = buildPayload(draft, next);
     setSaveState('saving');
@@ -386,6 +393,19 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
     if (!nodeLookup?.node) return;
     const content = window.prompt('Add evidence');
     if (!content) return;
+    const tempId = `temp-${Date.now()}`;
+    const optimistic = {
+      id: tempId,
+      node_id: nodeLookup.node.id,
+      type,
+      content,
+      quality: 'medium',
+      source: 'customer',
+      created_at: new Date().toISOString()
+    };
+    const next = [optimistic, ...evidenceItems];
+    setEvidenceItems(next);
+    setEvidence(nodeLookup.node.id, next);
     const payload = {
       type,
       content,
@@ -395,11 +415,29 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
     };
     try {
       const created = await api.createEvidence(nodeLookup.node.id, payload);
-      const next = [created, ...evidenceItems];
-      setEvidenceItems(next);
-      setEvidence(nodeLookup.node.id, next);
+      if (!created || !created.id) {
+        console.error('[Evidence] createEvidence returned no row:', created);
+        setEvidenceItems((prev) => {
+          const filtered = prev.filter((item) => item.id !== tempId);
+          setEvidence(nodeLookup.node.id, filtered);
+          return filtered;
+        });
+        alert('Evidence was not saved. Check the console for details.');
+        return;
+      }
+      setEvidenceItems((prev) => {
+        const newList = prev.map((item) => (item.id === tempId ? created : item));
+        setEvidence(nodeLookup.node.id, newList);
+        return newList;
+      });
     } catch (error) {
       console.error('Failed to add evidence:', error);
+      setEvidenceItems((prev) => {
+        const filtered = prev.filter((item) => item.id !== tempId);
+        setEvidence(nodeLookup.node.id, filtered);
+        return filtered;
+      });
+      alert(error.message || 'Failed to save evidence. If this persists, run database migrations (see migration 032_create_evidence_items.sql).');
     }
   };
 
@@ -636,7 +674,7 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
         title: hypothesis.statement,
         hypothesis: hypothesis.statement,
         hypothesisId: hypothesis.id,
-        status: 'planned'
+        status: 'draft'
       });
       setProposeHypothesisId(null);
       setSolutionTitle('');
@@ -651,50 +689,71 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
     }
   };
 
-  const handleCompleteExperiment = async () => {
-    if (!nodeLookup?.node || nodeLookup.type !== 'test') return;
-    const payload = buildPayload(draft, {
-      ...testDraft,
-      resultDecision: decisionDraft,
-      testStatus: 'done',
-      resultSummary: reflection.trim() || testDraft.resultSummary || ''
-    });
-    setSaveState('saving');
-    await handleSave(payload, { refresh: false });
-    setShowCompleteModal(false);
-  };
-
-  const isDecisionEnabled = todos.some((item) => item.is_done) || evidenceItems.length > 0;
-
-  useEffect(() => {
-    if (!isDecisionEnabled || nodeLookup?.type !== 'test') return;
-    const handleShortcut = (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-        event.preventDefault();
-        setShowCompleteModal(true);
-      }
-    };
-    window.addEventListener('keydown', handleShortcut);
-    return () => window.removeEventListener('keydown', handleShortcut);
-  }, [isDecisionEnabled, nodeLookup?.type]);
-
   const handleUpdateEvidence = async (itemId, updates) => {
+    const next = evidenceItems.map((item) => (item.id === itemId ? { ...item, ...updates } : item));
+    setEvidenceItems(next);
+    if (nodeLookup?.node) setEvidence(nodeLookup.node.id, next);
+    if (String(itemId).startsWith('temp-')) return;
     try {
       const updated = await api.updateEvidence(itemId, updates);
-      const next = evidenceItems.map((item) => (item.id === itemId ? updated : item));
-      setEvidenceItems(next);
-      if (nodeLookup?.node) setEvidence(nodeLookup.node.id, next);
+      setEvidenceItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, ...updated } : item)));
+      if (nodeLookup?.node) setEvidence(nodeLookup.node.id, next.map((item) => (item.id === itemId ? { ...item, ...updated } : item)));
     } catch (error) {
       console.error('Failed to update evidence:', error);
+      const reverted = evidenceItems.map((item) => (item.id === itemId ? { ...item, ...updates } : item));
+      setEvidenceItems(reverted);
+      if (nodeLookup?.node) setEvidence(nodeLookup.node.id, reverted);
     }
   };
 
+  const handleEvidenceContentChange = (itemId, value) => {
+    const next = evidenceItems.map((i) => (i.id === itemId ? { ...i, content: value } : i));
+    setEvidenceItems(next);
+    if (nodeLookup?.node) setEvidence(nodeLookup.node.id, next);
+    if (evidenceSaveTimeoutRef.current) clearTimeout(evidenceSaveTimeoutRef.current);
+    evidencePendingSaveRef.current = String(itemId).startsWith('temp-') ? null : { itemId };
+    evidenceSaveTimeoutRef.current = setTimeout(() => {
+      evidenceSaveTimeoutRef.current = null;
+      const current = evidenceItemsRef.current.find((i) => i.id === itemId);
+      if (!current || String(itemId).startsWith('temp-')) {
+        evidencePendingSaveRef.current = null;
+        return;
+      }
+      evidencePendingSaveRef.current = null;
+      void api.updateEvidence(itemId, { ...current, content: current.content }).then((updated) => {
+        setEvidenceItems((prev) => {
+          const nextList = prev.map((i) => (i.id === itemId ? { ...i, ...updated } : i));
+          if (nodeLookup?.node) setEvidence(nodeLookup.node.id, nextList);
+          return nextList;
+        });
+      }).catch((err) => console.error('Failed to save evidence:', err));
+    }, 500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (evidenceSaveTimeoutRef.current) clearTimeout(evidenceSaveTimeoutRef.current);
+      evidenceSaveTimeoutRef.current = null;
+      const pending = evidencePendingSaveRef.current;
+      if (pending?.itemId) {
+        evidencePendingSaveRef.current = null;
+        if (!String(pending.itemId).startsWith('temp-')) {
+          const current = evidenceItemsRef.current.find((i) => i.id === pending.itemId);
+          if (current) {
+            api.updateEvidence(pending.itemId, { ...current, content: current.content }).catch((err) => console.error('Flush evidence save failed:', err));
+          }
+        }
+      }
+    };
+  }, []);
+
   const handleDeleteEvidence = async (itemId) => {
+    const next = evidenceItems.filter((item) => item.id !== itemId);
+    setEvidenceItems(next);
+    if (nodeLookup?.node) setEvidence(nodeLookup.node.id, next);
+    if (String(itemId).startsWith('temp-')) return;
     try {
       await api.deleteEvidence(itemId);
-      const next = evidenceItems.filter((item) => item.id !== itemId);
-      setEvidenceItems(next);
-      if (nodeLookup?.node) setEvidence(nodeLookup.node.id, next);
     } catch (error) {
       console.error('Failed to delete evidence:', error);
     }
@@ -812,25 +871,45 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
               <div className="side-panel-field">
                 <label htmlFor="side-status" className="side-panel-label-row">
                   Status
-                  {draft.status && (
-                    <span
-                      className="status-chip"
-                      style={{ background: ostTokens.status[draft.status] || '#94a3b8' }}
-                    />
-                  )}
+                  {nodeLookup.type === 'test'
+                    ? (testDraft.testStatus && (
+                        <span
+                          className="status-chip"
+                          style={{ background: ostTokens.status[normalizeTestStatus(testDraft.testStatus)] || '#94a3b8' }}
+                        />
+                      ))
+                    : (draft.status && (
+                        <span
+                          className="status-chip"
+                          style={{ background: ostTokens.status[draft.status] || '#94a3b8' }}
+                        />
+                      ))}
                 </label>
-                <select
-                  id="side-status"
-                  value={draft.status || ''}
-                  onChange={(e) => handleFieldChange('status', e.target.value, { immediate: true })}
-                >
-                  <option value="">No status</option>
-                  {STATUS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                {nodeLookup.type === 'test' ? (
+                  <select
+                    id="side-status"
+                    value={normalizeTestStatus(testDraft.testStatus)}
+                    onChange={(e) => handleTestFieldChange('testStatus', e.target.value, { immediate: true })}
+                    aria-label="Test status"
+                  >
+                    {TEST_STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    id="side-status"
+                    value={draft.status || ''}
+                    onChange={(e) => handleFieldChange('status', e.target.value, { immediate: true })}
+                  >
+                    <option value="">No status</option>
+                    {STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="side-panel-field">
                 <label htmlFor="side-owner">Owner</label>
@@ -962,37 +1041,17 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
 
             <div className={`stepper-dot ${activePhase === 'decide' ? 'active' : ''}`} />
             <div
-              className={`experiment-section experiment-section-decision phase-card phase-card-decide ${
-                isDecisionEnabled ? 'enabled' : 'disabled'
-              }`}
+              className="experiment-section experiment-section-decision phase-card phase-card-decide"
               onFocusCapture={() => setActivePhase('decide')}
               onClick={() => setActivePhase('decide')}
             >
               <div className="experiment-section-header">
-                <div>
-                  <div className="experiment-section-title">Decide</div>
-                  {!isDecisionEnabled && (
-                    <div className="phase-helper">
-                      Complete todos or add evidence to decide.
-                    </div>
-                  )}
-                </div>
-                <div className="phase-actions">
-                  {isDecisionEnabled && <span className="phase-chip">Ready</span>}
-                  <button
-                    type="button"
-                    className="experiment-complete-btn"
-                    disabled={!isDecisionEnabled}
-                    onClick={() => setShowCompleteModal(true)}
-                  >
-                    Complete Experiment
-                  </button>
-                </div>
+                <div className="experiment-section-title">Test result</div>
               </div>
               <div className="experiment-section-content">
                 <div className="side-panel-section">
                   <div className="side-panel-section-title">Evidence</div>
-                  <div className="side-panel-inline">
+                  <div className="side-panel-inline evidence-add-buttons">
                     {['quote', 'kpi', 'link', 'note'].map((type) => (
                       <button
                         key={type}
@@ -1007,60 +1066,75 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
                   {isLoadingEvidence ? (
                     <div className="side-panel-empty">Loading evidence…</div>
                   ) : (
-                    evidenceItems.map((item) => (
-                      <div key={item.id} className="evidence-row">
-                        <select
-                          value={item.type}
-                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, type: e.target.value })}
-                        >
-                          <option value="quote">Quote</option>
-                          <option value="kpi">KPI</option>
-                          <option value="screenshot">Screenshot</option>
-                          <option value="link">Link</option>
-                          <option value="note">Note</option>
-                          <option value="call_summary">Call Summary</option>
-                        </select>
-                        <input
+                    <div className="evidence-list">
+                    {evidenceItems.map((item) => (
+                      <div key={item.id} className={`evidence-row evidence-quality-${(item.quality || 'medium').toLowerCase()}`}>
+                        <textarea
                           value={item.content}
-                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, content: e.target.value })}
+                          onChange={(e) => handleEvidenceContentChange(item.id, e.target.value)}
+                          onBlur={() => { if (evidenceSaveTimeoutRef.current) { clearTimeout(evidenceSaveTimeoutRef.current); evidenceSaveTimeoutRef.current = null; const current = evidenceItemsRef.current.find((i) => i.id === item.id); if (current) void handleUpdateEvidence(item.id, current); } }}
+                          placeholder="Quote, metric, or note…"
+                          spellCheck={false}
+                          className="evidence-content-input"
+                          rows={2}
                         />
-                        <select
-                          value={item.quality}
-                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, quality: e.target.value })}
-                        >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                        </select>
-                        <select
-                          value={item.source}
-                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, source: e.target.value })}
-                        >
-                          <option value="customer">Customer</option>
-                          <option value="analytics">Analytics</option>
-                          <option value="internal">Internal</option>
-                          <option value="sales">Sales</option>
-                        </select>
-                        <button type="button" onClick={() => handleDeleteEvidence(item.id)}>
-                          Delete
-                        </button>
+                        <div className="evidence-row-meta">
+                          <select
+                            value={item.type}
+                            onChange={(e) => handleUpdateEvidence(item.id, { ...item, type: e.target.value })}
+                          >
+                            <option value="quote">Quote</option>
+                            <option value="kpi">KPI</option>
+                            <option value="screenshot">Screenshot</option>
+                            <option value="link">Link</option>
+                            <option value="note">Note</option>
+                            <option value="call_summary">Call Summary</option>
+                          </select>
+                          <select
+                            value={item.quality}
+                            onChange={(e) => handleUpdateEvidence(item.id, { ...item, quality: e.target.value })}
+                          >
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
+                          <select
+                            value={item.source}
+                            onChange={(e) => handleUpdateEvidence(item.id, { ...item, source: e.target.value })}
+                          >
+                            <option value="customer">Customer</option>
+                            <option value="analytics">Analytics</option>
+                            <option value="internal">Internal</option>
+                            <option value="sales">Sales</option>
+                          </select>
+                          <button type="button" className="evidence-delete-btn" onClick={() => handleDeleteEvidence(item.id)} title="Remove evidence">
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                    ))
+                    ))}
+                    </div>
                   )}
                 </div>
 
                 <div className="side-panel-field">
-                  <label htmlFor="result-decision">Result Decision</label>
+                  <label htmlFor="result-decision">Result</label>
                   <select
                     id="result-decision"
-                    value={testDraft.resultDecision || ''}
+                    value={resultDisabled ? 'ongoing' : (normalizeResultDecision(testDraft.resultDecision) || 'ongoing')}
+                    disabled={resultDisabled}
                     onChange={(e) => handleResultDecisionChange(e.target.value || null)}
                   >
-                    <option value="">Not decided</option>
-                    <option value="pass">Pass</option>
-                    <option value="iterate">Iterate</option>
-                    <option value="kill">Kill</option>
+                    {RESULT_DECISION_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
                   </select>
+                  {hasOpenTodos && (
+                    <div className="phase-helper">Open todos: result is Ongoing until all are done.</div>
+                  )}
+                  {!hasOpenTodos && isTestDraft && (
+                    <div className="phase-helper">Set status to Designed experiment before deciding.</div>
+                  )}
                 </div>
 
                 <div className="side-panel-field">
@@ -1149,8 +1223,57 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
         </>
       )}
 
-      {nodeLookup.type === 'opportunity' && (
+      {nodeLookup.type === 'solution' && (
         <div className="side-panel-section">
+          <div className="side-panel-section-title">Sub-solutions</div>
+          <button
+            type="button"
+            className="side-panel-btn side-panel-btn-secondary"
+            onClick={() => onUpdate?.('add-child', { parentKey: selectedKey, childType: 'solution' })}
+          >
+            + Add Sub-Solution
+          </button>
+        </div>
+      )}
+
+      {nodeLookup.type === 'opportunity' && (
+        <div className="side-panel-sections-opportunity">
+          {(treeStructure === 'journey' || effectiveNode?.journeyStage || effectiveNode?.journey_stage) && (
+            <div className="side-panel-section">
+              <div className="side-panel-section-title">Journey stage</div>
+              <select
+                value={effectiveNode?.journeyStage ?? effectiveNode?.journey_stage ?? ''}
+                onChange={async (e) => {
+                  const v = e.target.value || null;
+                  setNodeOverride(selectedKey, { journeyStage: v });
+                  try {
+                    await api.updateOpportunity(nodeLookup.node.id, { journeyStage: v });
+                    onUpdate?.();
+                  } catch (err) {
+                    console.error('Failed to update journey stage', err);
+                  }
+                }}
+                aria-label="Journey stage"
+                className="side-panel-select"
+              >
+                <option value="">Unassigned</option>
+                {JOURNEY_STAGES.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="side-panel-section">
+            <div className="side-panel-section-title">Sub-opportunities</div>
+            <button
+              type="button"
+              className="side-panel-btn side-panel-btn-secondary"
+              onClick={() => onUpdate?.('add-child', { parentKey: selectedKey, childType: 'opportunity' })}
+            >
+              + Add Sub-Opportunity
+            </button>
+          </div>
+          <div className="side-panel-section">
           <div className="side-panel-section-title">Hypotheses</div>
           <div className="todo-input-row">
             <input
@@ -1270,6 +1393,7 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
               )}
             </div>
           )}
+          </div>
         </div>
       )}
 
@@ -1367,26 +1491,14 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
             {renderTodoPanel()}
           </div>
 
-          <div
-            className={`experiment-section experiment-section-decision ${
-              isDecisionEnabled ? 'enabled' : 'disabled'
-            }`}
-          >
+            <div className="experiment-section experiment-section-decision">
             <div className="experiment-section-header">
-              <div className="experiment-section-title">Decide</div>
-              <button
-                type="button"
-                className="experiment-complete-btn"
-                disabled={!isDecisionEnabled}
-                onClick={() => setShowCompleteModal(true)}
-              >
-                Complete Experiment
-              </button>
+              <div className="experiment-section-title">Test result</div>
             </div>
             <div className="experiment-section-content">
               <div className="side-panel-section">
                 <div className="side-panel-section-title">Evidence</div>
-                <div className="side-panel-inline">
+                <div className="side-panel-inline evidence-add-buttons">
                   {['quote', 'kpi', 'link', 'note'].map((type) => (
                     <button
                       key={type}
@@ -1401,66 +1513,81 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
                 {isLoadingEvidence ? (
                   <div className="side-panel-empty">Loading evidence…</div>
                 ) : (
-                  evidenceItems.map((item) => (
-                    <div key={item.id} className="evidence-row">
-                      <select
-                        value={item.type}
-                        onChange={(e) => handleUpdateEvidence(item.id, { ...item, type: e.target.value })}
-                      >
-                        <option value="quote">Quote</option>
-                        <option value="kpi">KPI</option>
-                        <option value="screenshot">Screenshot</option>
-                        <option value="link">Link</option>
-                        <option value="note">Note</option>
-                        <option value="call_summary">Call Summary</option>
-                      </select>
-                      <input
+                  <div className="evidence-list">
+                  {evidenceItems.map((item) => (
+                    <div key={item.id} className={`evidence-row evidence-quality-${(item.quality || 'medium').toLowerCase()}`}>
+                      <textarea
                         value={item.content}
-                        onChange={(e) => handleUpdateEvidence(item.id, { ...item, content: e.target.value })}
+                        onChange={(e) => handleEvidenceContentChange(item.id, e.target.value)}
+                        onBlur={() => { if (evidenceSaveTimeoutRef.current) { clearTimeout(evidenceSaveTimeoutRef.current); evidenceSaveTimeoutRef.current = null; const current = evidenceItemsRef.current.find((i) => i.id === item.id); if (current) void handleUpdateEvidence(item.id, current); } }}
+                        placeholder="Quote, metric, or note…"
+                        spellCheck={false}
+                        className="evidence-content-input"
+                        rows={2}
                       />
-                      <select
-                        value={item.quality}
-                        onChange={(e) => handleUpdateEvidence(item.id, { ...item, quality: e.target.value })}
-                      >
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                      </select>
-                      <select
-                        value={item.source}
-                        onChange={(e) => handleUpdateEvidence(item.id, { ...item, source: e.target.value })}
-                      >
-                        <option value="customer">Customer</option>
-                        <option value="analytics">Analytics</option>
-                        <option value="internal">Internal</option>
-                        <option value="sales">Sales</option>
-                      </select>
-                      <button type="button" onClick={() => handleDeleteEvidence(item.id)}>
-                        Delete
-                      </button>
+                      <div className="evidence-row-meta">
+                        <select
+                          value={item.type}
+                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, type: e.target.value })}
+                        >
+                          <option value="quote">Quote</option>
+                          <option value="kpi">KPI</option>
+                          <option value="screenshot">Screenshot</option>
+                          <option value="link">Link</option>
+                          <option value="note">Note</option>
+                          <option value="call_summary">Call Summary</option>
+                        </select>
+                        <select
+                          value={item.quality}
+                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, quality: e.target.value })}
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                        </select>
+                        <select
+                          value={item.source}
+                          onChange={(e) => handleUpdateEvidence(item.id, { ...item, source: e.target.value })}
+                        >
+                          <option value="customer">Customer</option>
+                          <option value="analytics">Analytics</option>
+                          <option value="internal">Internal</option>
+                          <option value="sales">Sales</option>
+                        </select>
+                        <button type="button" className="evidence-delete-btn" onClick={() => handleDeleteEvidence(item.id)} title="Remove evidence">
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                  ))
+                  ))}
+                  </div>
                 )}
               </div>
 
               <div className="side-panel-field">
-                <label htmlFor="result-decision">Result Decision</label>
+                <label htmlFor="result-decision-drawer">Result</label>
                 <select
-                  id="result-decision"
-                  value={testDraft.resultDecision || ''}
+                  id="result-decision-drawer"
+                  value={resultDisabled ? 'ongoing' : (normalizeResultDecision(testDraft.resultDecision) || 'ongoing')}
+                  disabled={resultDisabled}
                   onChange={(e) => handleResultDecisionChange(e.target.value || null)}
                 >
-                  <option value="">Not decided</option>
-                  <option value="pass">Pass</option>
-                  <option value="iterate">Iterate</option>
-                  <option value="kill">Kill</option>
+                  {RESULT_DECISION_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
                 </select>
+                {hasOpenTodos && (
+                  <div className="phase-helper">Open todos: result is Ongoing until all are done.</div>
+                )}
+                {!hasOpenTodos && isTestDraft && (
+                  <div className="phase-helper">Set status to Designed experiment before deciding.</div>
+                )}
               </div>
 
               <div className="side-panel-field">
-                <label htmlFor="result-summary">Result Summary</label>
+                <label htmlFor="result-summary-drawer">Result Summary</label>
                 <textarea
-                  id="result-summary"
+                  id="result-summary-drawer"
                   value={testDraft.resultSummary}
                   onChange={(e) => handleTestFieldChange('resultSummary', e.target.value)}
                   rows={2}
@@ -1469,80 +1596,7 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false }) {
             </div>
           </div>
 
-          {showCompleteModal && (
-            <div className="experiment-modal-backdrop" onClick={() => setShowCompleteModal(false)}>
-              <div className="experiment-modal" onClick={(event) => event.stopPropagation()}>
-                <div className="experiment-modal-header">Complete experiment</div>
-                <div className="side-panel-field">
-                  <label htmlFor="experiment-reflection">What did we learn?</label>
-                  <textarea
-                    id="experiment-reflection"
-                    value={reflection}
-                    onChange={(event) => setReflection(event.target.value)}
-                    rows={3}
-                  />
-                </div>
-                <div className="side-panel-field">
-                  <label htmlFor="experiment-decision">Decision</label>
-                  <select
-                    id="experiment-decision"
-                    value={decisionDraft}
-                    onChange={(event) => setDecisionDraft(event.target.value)}
-                  >
-                    <option value="pass">Pass</option>
-                    <option value="iterate">Iterate</option>
-                    <option value="kill">Kill</option>
-                  </select>
-                </div>
-                <div className="experiment-modal-actions">
-                  <button type="button" onClick={() => setShowCompleteModal(false)}>
-                    Cancel
-                  </button>
-                  <button type="button" className="primary" onClick={() => void handleCompleteExperiment()}>
-                    Confirm decision
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </>
-      )}
-
-      {nodeLookup.type === 'test' && showCompleteModal && (
-        <div className="experiment-modal-backdrop" onClick={() => setShowCompleteModal(false)}>
-          <div className="experiment-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="experiment-modal-header">Complete experiment</div>
-            <div className="side-panel-field">
-              <label htmlFor="experiment-reflection">What did we learn?</label>
-              <textarea
-                id="experiment-reflection"
-                value={reflection}
-                onChange={(event) => setReflection(event.target.value)}
-                rows={3}
-              />
-            </div>
-            <div className="side-panel-field">
-              <label htmlFor="experiment-decision">Decision</label>
-              <select
-                id="experiment-decision"
-                value={decisionDraft}
-                onChange={(event) => setDecisionDraft(event.target.value)}
-              >
-                <option value="pass">Pass</option>
-                <option value="iterate">Iterate</option>
-                <option value="kill">Kill</option>
-              </select>
-            </div>
-            <div className="experiment-modal-actions">
-              <button type="button" onClick={() => setShowCompleteModal(false)}>
-                Cancel
-              </button>
-              <button type="button" className="primary" onClick={() => void handleCompleteExperiment()}>
-                Confirm decision
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       <div className="side-panel-actions">

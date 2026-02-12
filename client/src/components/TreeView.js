@@ -3,7 +3,7 @@ import { FaEllipsisH } from 'react-icons/fa';
 import './TreeView.css';
 import TreeModeView from './TreeMode/TreeModeView';
 import ListModeView from './ListMode/ListModeView';
-import { buildOstTree, collectTreeNodes } from '../lib/ostTree';
+import { buildOstForest, buildOstTree, collectTreeNodes } from '../lib/ostTree';
 import { allowedChildren, parseNodeKey } from '../lib/ostTypes';
 import { computeConfidenceMap } from '../lib/confidence/recompute';
 import { useOstStore } from '../store/useOstStore';
@@ -11,8 +11,8 @@ import { useOstStore } from '../store/useOstStore';
 function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, onUpdate, onAddOutcome, users }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const {
-    state: { viewMode, layoutUnlocked, nodeOverrides, selectedKey, evidenceByTest },
-    actions: { setLayoutUnlocked, setCollapseMap, clearOverrides, setRenamingKey, setFocusKey, setSelectedKey }
+    state: { viewMode, treeStructure, layoutUnlocked, nodeOverrides, selectedKey, evidenceByTest },
+    actions: { setTreeStructure, setLayoutUnlocked, setCollapseMap, clearOverrides, setRenamingKey, setFocusKey, setSelectedKey }
   } = useOstStore();
 
   useEffect(() => {
@@ -49,9 +49,17 @@ function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, o
 
   const allNodes = useMemo(() => {
     if (!outcomes || outcomes.length === 0) return [];
-    const tree = buildOstTree(outcomes[0], nodeOverrides);
-    return collectTreeNodes(tree.root);
-  }, [outcomes, nodeOverrides]);
+    const forest = buildOstForest(outcomes, nodeOverrides, { treeStructure });
+    const nodes = [];
+    (forest.roots || []).forEach((root) => {
+      const walk = (n, d) => {
+        nodes.push({ node: n, depth: d });
+        (n.children || []).forEach((c) => walk(c, d + 1));
+      };
+      walk(root, 1);
+    });
+    return nodes;
+  }, [outcomes, nodeOverrides, treeStructure]);
 
   const handleCollapseAll = () => {
     const next = {};
@@ -93,6 +101,7 @@ function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, o
         {viewMode === 'tree' ? (
           <TreeModeView
             outcomes={outcomes}
+            treeStructure={treeStructure}
             onUpdate={onUpdate}
             users={users}
             confidenceMap={confidenceMap}
@@ -135,6 +144,23 @@ function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, o
           <div className="tree-toolbar">
             {viewMode === 'tree' && (
               <>
+                <div className="tree-toolbar-structure" role="group" aria-label="Tree structure">
+                  <span className="tree-toolbar-label">Structure:</span>
+                  <button
+                    type="button"
+                    className={`tree-toolbar-btn tree-toolbar-structure-btn ${treeStructure === 'classic' ? 'active' : ''}`}
+                    onClick={() => setTreeStructure('classic')}
+                  >
+                    Classic
+                  </button>
+                  <button
+                    type="button"
+                    className={`tree-toolbar-btn tree-toolbar-structure-btn ${treeStructure === 'journey' ? 'active' : ''}`}
+                    onClick={() => setTreeStructure('journey')}
+                  >
+                    Journey
+                  </button>
+                </div>
                 <button className="tree-toolbar-btn" type="button" onClick={handleCollapseAll}>
                   Collapse all
                 </button>

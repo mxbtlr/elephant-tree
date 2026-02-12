@@ -4,6 +4,7 @@ const OstStoreContext = createContext(null);
 
 const initialState = {
   viewMode: 'tree',
+  treeStructure: 'classic', // 'classic' | 'journey'
   selectedKey: null,
   collapsed: {},
   layoutUnlocked: false,
@@ -41,6 +42,8 @@ const reducer = (state, action) => {
   switch (action.type) {
     case 'SET_VIEW_MODE':
       return { ...state, viewMode: action.payload };
+    case 'SET_TREE_STRUCTURE':
+      return { ...state, treeStructure: action.payload };
     case 'SET_SELECTED':
       return { ...state, selectedKey: action.payload, focusKey: action.payload };
     case 'CLEAR_SELECTED':
@@ -160,6 +163,7 @@ export const OstStoreProvider = ({ children }) => {
   const actions = useMemo(
     () => ({
       setViewMode: (mode) => dispatch({ type: 'SET_VIEW_MODE', payload: mode }),
+      setTreeStructure: (structure) => dispatch({ type: 'SET_TREE_STRUCTURE', payload: structure }),
       setSelectedKey: (key) => dispatch({ type: 'SET_SELECTED', payload: key }),
       clearSelection: () => dispatch({ type: 'CLEAR_SELECTED' }),
       toggleCollapse: (key) => dispatch({ type: 'TOGGLE_COLLAPSE', payload: key }),

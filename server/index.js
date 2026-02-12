@@ -3144,7 +3144,15 @@ app.post('/api/integrations/:type/validate', authenticate, (req, res) => {
   }
 });
 
-// Start server
+// Health check (for load balancers and deployment)
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Start server when run directly (not when required by tests)
 async function startServer() {
   await initializeData();
   app.listen(PORT, () => {
@@ -3152,5 +3160,9 @@ async function startServer() {
   });
 }
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app };
 

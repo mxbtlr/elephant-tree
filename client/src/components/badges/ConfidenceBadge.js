@@ -7,21 +7,44 @@ const colorMap = {
   high: 'confidence-high'
 };
 
-function ConfidenceBadge({ confidence }) {
+function buildConfidenceTooltip(confidence) {
+  const explain = confidence?.explain;
+  if (!explain) return `${(confidence?.score ?? 0).toFixed(0)}% confidence`;
+
+  const parts = [];
+  if (explain.doneTests === 0) {
+    parts.push('No decided tests yet.');
+  } else {
+    const breakdown = [];
+    if (explain.pass > 0) breakdown.push(`${explain.pass} passed`);
+    if (explain.iterate > 0) breakdown.push(`${explain.iterate} iterate`);
+    if (explain.kill > 0) breakdown.push(`${explain.kill} killed`);
+    parts.push(`Based on: ${breakdown.join(', ')}.`);
+    if (explain.kill > 0) {
+      parts.push('Killed tests reduce confidence.');
+    }
+  }
+  parts.push(`Score: ${explain.score.toFixed(0)}% → ${explain.level}.`);
+  return parts.join(' ');
+}
+
+function ConfidenceBadge({ confidence, showExplanation = false }) {
   if (!confidence) return null;
   const levelClass = colorMap[confidence.level] || 'confidence-low';
+  const tooltip = buildConfidenceTooltip(confidence);
   const explain = confidence.explain;
-  const tooltip = explain
-    ? `Score: ${confidence.score.toFixed(0)}%
-Done tests: ${explain.doneTests}
-Pass: ${explain.pass} • Iterate: ${explain.iterate} • Kill: ${explain.kill}`
-    : `${confidence.score.toFixed(0)}% confidence`;
 
   return (
     <div className={`confidence-badge ${levelClass}`} title={tooltip}>
-      {confidence.level.toUpperCase()}
+      <span className="confidence-badge-level">{confidence.level.toUpperCase()}</span>
+      {showExplanation && explain && explain.doneTests > 0 && (
+        <span className="confidence-badge-detail">
+          {explain.pass}P / {explain.iterate}I / {explain.kill}K
+        </span>
+      )}
     </div>
   );
 }
 
 export default ConfidenceBadge;
+export { buildConfidenceTooltip };

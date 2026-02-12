@@ -8,6 +8,7 @@ server/data.json
 
 # Build
 client/build/
+client/.env
 client/.env.local
 client/.env.development.local
 client/.env.test.local

@@ -105,11 +105,43 @@
   top: 128px;
   left: 16px;
   z-index: 180;
-  background: rgba(255, 255, 255, 0.75);
-  padding: 6px;
-  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 6px 8px;
+  border-radius: 12px;
   backdrop-filter: blur(10px);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.tree-toolbar-structure {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 2px;
+  border-right: 1px solid rgba(148, 163, 184, 0.25);
+  margin-right: 4px;
+}
+
+.tree-toolbar-label {
+  font-size: 11px;
+  color: var(--muted, #64748b);
+  margin-right: 4px;
+}
+
+.tree-toolbar-structure-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tree-toolbar-structure-btn.active {
+  background: var(--brand-100, #e0e7ff);
+  color: var(--brand-700, #4338ca);
+  border-color: var(--brand-300, #a5b4fc);
+}
+
+.tree-toolbar-structure-btn:not(.active):hover {
+  background: rgba(248, 250, 252, 0.9);
 }
 
 .tree-view.tree-view-list .tree-toolbar {
