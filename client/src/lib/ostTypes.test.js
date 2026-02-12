@@ -48,6 +48,10 @@ describe('ostTypes', () => {
     it('parses type:id', () => {
       expect(parseNodeKey('outcome:abc-123')).toEqual({ type: 'outcome', id: 'abc-123' });
       expect(parseNodeKey('test:xyz')).toEqual({ type: 'test', id: 'xyz' });
+      expect(parseNodeKey('journey:outcome-id:__unassigned__')).toEqual({
+        type: 'journey',
+        id: 'outcome-id:__unassigned__'
+      });
     });
     it('returns null for empty or invalid', () => {
       expect(parseNodeKey('')).toBeNull();

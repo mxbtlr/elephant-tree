@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import TreeView from './components/TreeView';
 import AddOutcomeButton from './components/AddOutcomeButton';
+import OnboardingFlow, { getOnboardingCompleted, setOnboardingCompleted, shouldShowOnboarding } from './components/OnboardingFlow';
 import WorkspaceMembersModal from './components/WorkspaceMembersModal';
 import CreateTeamWorkspaceModal from './components/CreateTeamWorkspaceModal';
 import CreateDecisionSpaceModal from './components/CreateDecisionSpaceModal';
@@ -16,6 +17,7 @@ import { FaCheckCircle } from 'react-icons/fa';
 import api from './services/supabaseApi';
 import { supabase } from './services/supabase';
 import { DEFAULT_TITLES, getNodeKey, parseNodeKey } from './lib/ostTypes';
+import { UNASSIGNED_STAGE_ID } from './lib/journeyStages';
 import { buildOstForest, findNodeByKey } from './lib/ostTree';
 import { useOstStore } from './store/useOstStore';
 
@@ -36,6 +38,9 @@ function App() {
   const [currentPage, setCurrentPage] = useState('tree');
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [showTeamDrawer, setShowTeamDrawer] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showHelpMenu, setShowHelpMenu] = useState(false);
+  const addOutcomeButtonRef = useRef(null);
   const [isTodoOpen, setIsTodoOpen] = useState(() => {
     try {
       return localStorage.getItem('treeflow:todoOpen') === 'true';
@@ -198,6 +203,11 @@ function App() {
       (item) => item.decisionSpaceId === activeDecisionSpaceId
     );
   }, [activeDecisionSpaceId, outcomesForWorkspace]);
+
+  useEffect(() => {
+    if (!user || currentPage !== 'tree') return;
+    if (shouldShowOnboarding(outcomesForDecisionSpace)) setShowOnboarding(true);
+  }, [user, currentPage, outcomesForDecisionSpace]);
 
   const nodeTitleMap = useMemo(() => {
     const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {}, { treeStructure });
@@ -851,8 +861,9 @@ function App() {
           return;
         }
         const decisionSpaceIdForWrite = workspaceIdForWrite ? activeDecisionSpaceId : null;
+        const initialTitle = payload?.initialTitle ?? DEFAULT_TITLES.outcome;
         const created = await api.createOutcome({
-          title: DEFAULT_TITLES.outcome,
+          title: initialTitle,
           workspaceId: workspaceIdForWrite,
           teamId: legacyTeamIdForWrite,
           decisionSpaceId: decisionSpaceIdForWrite
@@ -881,11 +892,16 @@ function App() {
         const parsed = parseNodeKey(payload.parentKey);
         if (!parsed) return;
         const { type, id } = parsed;
+        const opportunityTitle = payload?.initialTitle ?? DEFAULT_TITLES.opportunity;
+        const solutionTitle = payload?.initialTitle ?? DEFAULT_TITLES.solution;
+        const testTitle = payload?.initialTitle ?? DEFAULT_TITLES.test;
         if (payload.childType === 'opportunity' && type === 'outcome') {
+          const rawStage = payload.journeyStage ?? null;
+          const journeyStageForDb = (rawStage && rawStage !== UNASSIGNED_STAGE_ID) ? rawStage : null;
           const created = await api.createOpportunity(id, {
-            title: DEFAULT_TITLES.opportunity,
+            title: opportunityTitle,
             workspaceId: workspaceIdForWrite,
-            journeyStage: payload.journeyStage ?? null
+            journeyStage: journeyStageForDb
           });
           if (created?.id) setSelectedKey(getNodeKey('opportunity', created.id));
         }
@@ -894,10 +910,11 @@ function App() {
           const outcomeId = parts[0];
           const stageId = parts[1] || null;
           if (!outcomeId) return;
+          const journeyStageForDb = (stageId && stageId !== UNASSIGNED_STAGE_ID) ? stageId : null;
           const created = await api.createOpportunity(outcomeId, {
-            title: DEFAULT_TITLES.opportunity,
+            title: opportunityTitle,
             workspaceId: workspaceIdForWrite,
-            journeyStage: stageId || null
+            journeyStage: journeyStageForDb
           });
           if (created?.id) setSelectedKey(getNodeKey('opportunity', created.id));
         }
@@ -906,7 +923,7 @@ function App() {
           const outcomeId = lookup?.root?.id;
           if (!outcomeId) return;
           const created = await api.createOpportunity(outcomeId, {
-            title: DEFAULT_TITLES.opportunity,
+            title: opportunityTitle,
             workspaceId: workspaceIdForWrite,
             parentOpportunityId: id
           });
@@ -914,7 +931,7 @@ function App() {
         }
         if (payload.childType === 'solution' && type === 'opportunity') {
           const created = await api.createSolution(id, {
-            title: DEFAULT_TITLES.solution,
+            title: solutionTitle,
             workspaceId: workspaceIdForWrite
           });
           if (created?.id) setSelectedKey(getNodeKey('solution', created.id));
@@ -924,7 +941,7 @@ function App() {
           const opportunityId = lookup?.opportunity?.id;
           if (!opportunityId) return;
           const created = await api.createSolution(opportunityId, {
-            title: DEFAULT_TITLES.solution,
+            title: solutionTitle,
             workspaceId: workspaceIdForWrite,
             parentSolutionId: id
           });
@@ -932,7 +949,7 @@ function App() {
         }
         if (payload.childType === 'test' && type === 'solution') {
           const created = await api.createTest(id, {
-            title: DEFAULT_TITLES.test,
+            title: testTitle,
             description: '',
             testTemplate: null,
             testType: 'custom',
@@ -1207,12 +1224,41 @@ function App() {
             ref={commandInputRef}
           />
           <AddOutcomeButton
+            ref={addOutcomeButtonRef}
             onCreate={() => handleBoardUpdate('add-outcome')}
             label="Outcome"
             disabled={!activeDecisionSpaceId}
           />
           <button className="top-button" type="button">Filters</button>
-          <button className="top-button" type="button">Share</button>
+          <div className="help-menu-wrap">
+            <button
+              type="button"
+              className="top-button"
+              onClick={() => setShowHelpMenu((v) => !v)}
+              aria-expanded={showHelpMenu}
+              aria-haspopup="true"
+            >
+              Help
+            </button>
+            {showHelpMenu && (
+              <>
+                <div className="help-menu-backdrop" onClick={() => setShowHelpMenu(false)} aria-hidden="true" />
+                <div className="help-menu-dropdown">
+                  <button
+                    type="button"
+                    className="help-menu-item"
+                    onClick={() => {
+                      setOnboardingCompleted(false);
+                      setShowOnboarding(true);
+                      setShowHelpMenu(false);
+                    }}
+                  >
+                    Restart Tutorial
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <button onClick={() => setShowProfile(true)} className="top-button">
             {user?.name || user?.email || user?.profile?.name || 'User'}
           </button>
@@ -1339,6 +1385,15 @@ function App() {
           workspaceId={resolveWorkspaceId(activeWorkspaceId)}
         />
       )}
+      <OnboardingFlow
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        outcomes={outcomesForDecisionSpace}
+        treeStructure={treeStructure}
+        onCreateOutcome={(title) => handleBoardUpdate('add-outcome', { initialTitle: title })}
+        onUpdate={handleBoardUpdate}
+        addOutcomeButtonRef={addOutcomeButtonRef}
+      />
     </div>
   );
 }

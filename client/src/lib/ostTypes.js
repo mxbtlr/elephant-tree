@@ -88,8 +88,10 @@ export const getNodeKey = (type, id) => `${type}:${id}`;
 
 export const parseNodeKey = (key) => {
   if (!key) return null;
-  const [type, id] = key.split(':');
-  if (!type || !id) return null;
+  const i = key.indexOf(':');
+  if (i <= 0 || i === key.length - 1) return null;
+  const type = key.slice(0, i);
+  const id = key.slice(i + 1);
   return { type, id };
 };
 
