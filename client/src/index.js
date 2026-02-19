@@ -4,6 +4,24 @@ import './index.css';
 import App from './App';
 import { OstStoreProvider } from './store/useOstStore';
 
+// Suppress benign ResizeObserver loop error (browser quirk; can fire from libs or our onboarding)
+(function () {
+  const msg = 'ResizeObserver loop';
+  window.addEventListener('error', function (e) {
+    if (e?.message?.includes?.(msg)) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      return true;
+    }
+  }, true);
+  const prev = window.onerror;
+  window.onerror = function (message, ...rest) {
+    if (typeof message === 'string' && message.includes(msg)) return true;
+    if (prev) return prev.apply(this, [message, ...rest]);
+    return false;
+  };
+})();
+
 class ErrorBoundary extends React.Component {
   state = { error: null };
   static getDerivedStateFromError(error) {

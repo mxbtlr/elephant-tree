@@ -89,7 +89,7 @@ function getTestDecisionsUnderNode(node) {
   return decisions;
 }
 
-function TreeCanvas({ outcomes, treeStructure = 'classic', onUpdate, users, confidenceMap, onAddOutcome }) {
+function TreeCanvas({ outcomes, treeStructure = 'classic', onUpdate, users, confidenceMap, onAddOutcome, isCreatingOutcome = false }) {
   const {
     state: { collapsed, selectedKey, layoutUnlocked, focusKey, nodeOverrides },
     actions: { setSelectedKey, toggleCollapse, clearSelection, setFocusKey }
@@ -316,8 +316,8 @@ function TreeCanvas({ outcomes, treeStructure = 'classic', onUpdate, users, conf
       <div className="tree-empty-state">
         <div className="tree-empty-title">This Decision Space has no Outcomes yet</div>
         <div className="tree-empty-subtitle">Outcomes are the root goals of this tree.</div>
-        <button type="button" onClick={onAddOutcome} className="tree-empty-cta">
-          Add first Outcome
+        <button type="button" onClick={onAddOutcome} className="tree-empty-cta" disabled={isCreatingOutcome}>
+          {isCreatingOutcome ? 'Creating…' : 'Add first Outcome'}
         </button>
       </div>
     );

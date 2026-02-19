@@ -147,14 +147,22 @@ function OnboardingFlow({
       return;
     }
     const el = addOutcomeButtonRef.current;
-    const update = () => setAnchorRect(el.getBoundingClientRect());
-    update();
-    const obs = new ResizeObserver(update);
+    let rafId = 0;
+    const scheduleUpdate = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        setAnchorRect(el.getBoundingClientRect());
+      });
+    };
+    scheduleUpdate();
+    const obs = new ResizeObserver(scheduleUpdate);
     obs.observe(el);
-    window.addEventListener('scroll', update, true);
+    window.addEventListener('scroll', scheduleUpdate, true);
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       obs.disconnect();
-      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('scroll', scheduleUpdate, true);
     };
   }, [isOpen, step, addOutcomeButtonRef]);
 

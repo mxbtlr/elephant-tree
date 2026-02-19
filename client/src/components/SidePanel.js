@@ -79,6 +79,7 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false, treeStructure 
   });
   const saveTimeoutRef = useRef(null);
   const lastPayloadRef = useRef(null);
+  const draftSyncedForNodeIdRef = useRef(null);
   const evidenceSaveTimeoutRef = useRef(null);
   const evidencePendingSaveRef = useRef(null); // { itemId, data } for flush on unmount
   const evidenceItemsRef = useRef(evidenceItems);
@@ -114,6 +115,7 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false, treeStructure 
 
   useEffect(() => {
     if (!effectiveNode) {
+      draftSyncedForNodeIdRef.current = null;
       if (!isSameDraft(EMPTY_DRAFT)) {
         setDraft(EMPTY_DRAFT);
       }
@@ -143,8 +145,9 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false, treeStructure 
     if (!isSameTestDraft(nextTestDraft)) {
       setTestDraft(nextTestDraft);
     }
+    draftSyncedForNodeIdRef.current = nodeLookup?.node?.id ?? null;
     setSaveState('saved');
-  }, [effectiveNode]);
+  }, [effectiveNode, nodeLookup?.node?.id]);
 
   useEffect(() => {
     const testId = nodeLookup?.type === 'test' ? nodeLookup?.node?.id : null;
@@ -279,6 +282,15 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false, treeStructure 
       }
     };
   }, []);
+
+  // When the selected node changes, cancel any pending save so we never apply a previous node's draft to the new node (which would overwrite the new outcome's title and can cause "Save failed").
+  useEffect(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    lastPayloadRef.current = null;
+  }, [nodeLookup?.node?.id]);
 
   const queueSave = (nextPayload, options = {}) => {
     if (!nodeLookup?.node) return;
@@ -761,6 +773,9 @@ function SidePanel({ outcomes, users, onUpdate, isDrawer = false, treeStructure 
 
   const handleSave = async (payload = buildPayload(), options = {}) => {
     if (!nodeLookup?.node) return;
+    if (draftSyncedForNodeIdRef.current !== nodeLookup.node.id) {
+      return;
+    }
     try {
       if (nodeLookup.type === 'outcome') {
         await api.updateOutcome(nodeLookup.node.id, payload);

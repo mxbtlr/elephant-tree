@@ -3,6 +3,7 @@ import './App.css';
 import TreeView from './components/TreeView';
 import AddOutcomeButton from './components/AddOutcomeButton';
 import OnboardingFlow, { getOnboardingCompleted, setOnboardingCompleted, shouldShowOnboarding } from './components/OnboardingFlow';
+import FeedbackWidget from './components/FeedbackWidget';
 import WorkspaceMembersModal from './components/WorkspaceMembersModal';
 import CreateTeamWorkspaceModal from './components/CreateTeamWorkspaceModal';
 import CreateDecisionSpaceModal from './components/CreateDecisionSpaceModal';
@@ -32,6 +33,7 @@ function App() {
   const [activeDecisionSpaceId, setActiveDecisionSpaceId] = useState(null);
   const [workspaces, setWorkspaces] = useState([]);
   const [decisionSpaces, setDecisionSpaces] = useState([]);
+  const [workspaceLoadKey, setWorkspaceLoadKey] = useState(0);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
   const [showCreateDecisionSpaceModal, setShowCreateDecisionSpaceModal] = useState(false);
@@ -40,6 +42,8 @@ function App() {
   const [showTeamDrawer, setShowTeamDrawer] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showHelpMenu, setShowHelpMenu] = useState(false);
+  const [isSettingUpWorkspace, setIsSettingUpWorkspace] = useState(false);
+  const [isCreatingOutcome, setIsCreatingOutcome] = useState(false);
   const addOutcomeButtonRef = useRef(null);
   const [isTodoOpen, setIsTodoOpen] = useState(() => {
     try {
@@ -66,8 +70,13 @@ function App() {
   const commandInputRef = useRef(null);
   const lastWorkspaceSwitchRef = useRef(0);
   const activityThrottleRef = useRef(0);
+  const isCreatingWorkspaceRef = useRef(false);
+  const hasRetriedWorkspaceLoadRef = useRef(false);
+  const skipNextWorkspaceSyncRef = useRef(false);
+  const activeWorkspaceIdRef = useRef(null);
+  const activeDecisionSpaceIdRef = useRef(null);
   const {
-    state: { viewMode, treeStructure, selectedKey, nodeOverrides, todosById },
+    state: { viewMode, treeStructure, selectedKey, renamingKey, nodeOverrides, todosById },
     actions: {
       setViewMode,
       setTreeStructure,
@@ -467,6 +476,9 @@ function App() {
     localStorage.setItem('treeflow:lastSpaceByWorkspace', JSON.stringify(map));
   };
 
+  activeWorkspaceIdRef.current = activeWorkspaceId;
+  activeDecisionSpaceIdRef.current = activeDecisionSpaceId;
+
   const ensureActiveDecisionSpace = async (workspaceId) => {
     const resolvedWorkspaceId = resolveWorkspaceId(workspaceId);
     if (!resolvedWorkspaceId) return null;
@@ -480,9 +492,24 @@ function App() {
       );
       return null;
     }
-    const spaces = await api.listDecisionSpaces(resolvedWorkspaceId);
-    setDecisionSpaces(spaces || []);
+    let spaces = await api.listDecisionSpaces(resolvedWorkspaceId);
     if (!spaces || spaces.length === 0) {
+      try {
+        await api.createDecisionSpace(resolvedWorkspaceId, { name: 'Default' });
+        spaces = await api.listDecisionSpaces(resolvedWorkspaceId);
+      } catch (err) {
+        console.warn('Could not create default decision space:', err);
+      }
+    }
+    // Don't overwrite with empty if we already have a selection for this workspace (e.g. set from RPC); avoids flicker when a slow fetch completes after setup
+    if (!spaces || spaces.length === 0) {
+      if (
+        activeWorkspaceIdRef.current === resolvedWorkspaceId &&
+        activeDecisionSpaceIdRef.current
+      ) {
+        return activeDecisionSpaceIdRef.current;
+      }
+      setDecisionSpaces([]);
       setActiveDecisionSpaceId(null);
       window.history.replaceState(
         {},
@@ -491,6 +518,7 @@ function App() {
       );
       return null;
     }
+    setDecisionSpaces(spaces);
     const lastMap = getLastSpaceMap();
     const preferred = lastMap[resolvedWorkspaceId];
     const nextId = spaces.find((space) => space.id === preferred)?.id || spaces[0].id;
@@ -504,34 +532,102 @@ function App() {
     return nextId;
   };
 
+  // Single workspace load + create-default flow: list workspaces; if empty, call RPC once (guarded), then list again; one retry if still empty.
   useEffect(() => {
+    if (!user) return;
+    if (isCreatingWorkspaceRef.current) return;
+
     const loadWorkspaces = async () => {
       try {
-        const data = await api.listWorkspaces();
-        if (!data || data.length === 0) {
-          const created = await api.createWorkspace({
-            name: 'Personal Workspace',
-            type: 'personal',
-            ownerEmail: user?.email
-          });
-          setWorkspaces([created]);
-        } else {
+        let data = await api.listWorkspaces();
+        if (data?.length > 0) {
           setWorkspaces(data);
+          return;
+        }
+
+        setIsSettingUpWorkspace(true);
+        isCreatingWorkspaceRef.current = true;
+        let rpcResult = null;
+        try {
+          rpcResult = await api.createMyDefaultWorkspace();
+        } catch (createErr) {
+          console.warn('createMyDefaultWorkspace failed:', createErr);
+          if (!hasRetriedWorkspaceLoadRef.current) {
+            hasRetriedWorkspaceLoadRef.current = true;
+            setTimeout(() => setWorkspaceLoadKey((k) => k + 1), 2500);
+          }
+          return;
+        } finally {
+          isCreatingWorkspaceRef.current = false;
+        }
+
+        data = await api.listWorkspaces();
+        if (!data?.length) return;
+
+        setWorkspaces(data);
+        const firstId = data[0].id;
+        setActiveWorkspaceId(firstId);
+        localStorage.setItem('treeflow:workspace', firstId);
+
+        if (rpcResult?.workspace_id && rpcResult?.decision_space_id) {
+          setDecisionSpaces([{
+            id: rpcResult.decision_space_id,
+            workspace_id: rpcResult.workspace_id,
+            name: 'Default',
+            description: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }]);
+          setActiveDecisionSpaceId(rpcResult.decision_space_id);
+          setLastSpaceForWorkspace(firstId, rpcResult.decision_space_id);
+          window.history.replaceState(
+            {},
+            '',
+            `/workspaces/${encodeURIComponent(firstId)}/spaces/${encodeURIComponent(rpcResult.decision_space_id)}`
+          );
+          skipNextWorkspaceSyncRef.current = true;
+          setTimeout(() => { skipNextWorkspaceSyncRef.current = false; }, 0);
+        } else {
+          const spaces = await api.listDecisionSpaces(firstId);
+          if (spaces?.length) {
+            const defaultSpaceId = spaces[0].id;
+            setDecisionSpaces(spaces);
+            setActiveDecisionSpaceId(defaultSpaceId);
+            setLastSpaceForWorkspace(firstId, defaultSpaceId);
+            window.history.replaceState(
+              {},
+              '',
+              `/workspaces/${encodeURIComponent(firstId)}/spaces/${encodeURIComponent(defaultSpaceId)}`
+            );
+            skipNextWorkspaceSyncRef.current = true;
+            setTimeout(() => { skipNextWorkspaceSyncRef.current = false; }, 0);
+          }
         }
       } catch (error) {
         console.error('Failed to load workspaces:', error);
+        if (!hasRetriedWorkspaceLoadRef.current) {
+          hasRetriedWorkspaceLoadRef.current = true;
+          setTimeout(() => setWorkspaceLoadKey((k) => k + 1), 2500);
+        }
+      } finally {
+        setIsSettingUpWorkspace(false);
+        isCreatingWorkspaceRef.current = false;
       }
     };
-    if (user) {
-      void loadWorkspaces();
-    }
-  }, [user]);
+
+    void loadWorkspaces();
+  }, [user, workspaceLoadKey]);
 
   useEffect(() => {
-    const storedWorkspace = localStorage.getItem('treeflow:workspace');
+    if (authInitializing || !user) return;
+    if (skipNextWorkspaceSyncRef.current) return;
     const route = parseRoute();
+    const firstReal = effectiveWorkspaces[0] && !isLegacyWorkspaceId(effectiveWorkspaces[0].id)
+      ? effectiveWorkspaces[0].id
+      : null;
+    const storedWorkspace = localStorage.getItem('treeflow:workspace');
     const rawWorkspace =
-      route?.workspaceId || storedWorkspace || effectiveWorkspaces[0]?.id || null;
+      route?.workspaceId || firstReal || storedWorkspace || effectiveWorkspaces[0]?.id || null;
     const nextWorkspace = resolveWorkspaceId(rawWorkspace);
     if (!nextWorkspace) return;
     const isSameWorkspace = activeWorkspaceId === nextWorkspace;
@@ -553,16 +649,16 @@ function App() {
     if (!activeDecisionSpaceId || !isSameWorkspace) {
       void ensureActiveDecisionSpace(nextWorkspace);
     }
-  }, [effectiveWorkspaces, activeWorkspaceId, activeDecisionSpaceId]);
+  }, [authInitializing, user, effectiveWorkspaces, activeWorkspaceId, activeDecisionSpaceId]);
 
   useEffect(() => {
-    if (!activeWorkspaceId) return;
+    if (authInitializing || !user || !activeWorkspaceId || isLegacyWorkspaceId(activeWorkspaceId)) return;
     const route = parseRoute();
     if (route?.workspaceId !== activeWorkspaceId) return;
-    if (!route?.spaceId) {
+    if (!route?.spaceId && !activeDecisionSpaceId) {
       void ensureActiveDecisionSpace(activeWorkspaceId);
     }
-  }, [activeWorkspaceId]);
+  }, [authInitializing, user, activeWorkspaceId, activeDecisionSpaceId]);
 
   const loadWorkspaceTodos = async () => {
     if (!resolvedWorkspaceId) {
@@ -677,8 +773,14 @@ function App() {
 
   useEffect(() => {
     if (!activeWorkspaceId) return;
+    if (skipNextWorkspaceSyncRef.current) return;
+    // Don't refetch when we already have a valid selection for this workspace (avoids overwriting after setup)
+    const hasSpacesForWorkspace = decisionSpaces.length > 0 && decisionSpaces.some(
+      (s) => s.workspace_id === activeWorkspaceId
+    );
+    if (activeDecisionSpaceId && hasSpacesForWorkspace) return;
     void ensureActiveDecisionSpace(activeWorkspaceId);
-  }, [activeWorkspaceId]);
+  }, [activeWorkspaceId, activeDecisionSpaceId, decisionSpaces]);
 
   useEffect(() => {
     const boardId = activeWorkspaceId || 'default';
@@ -739,6 +841,7 @@ function App() {
       if (event?.message?.includes('ResizeObserver loop completed')) {
         event.preventDefault();
         event.stopImmediatePropagation();
+        return true;
       }
     };
     window.addEventListener('error', handleResizeObserverError, true);
@@ -803,6 +906,9 @@ function App() {
         shouldRefresh = false;
         const { nodeKey, changes } = payload || {};
         applyNodePatch(nodeKey, changes);
+        if (nodeKey && nodeKey === renamingKey) {
+          setRenamingKey(null);
+        }
         return;
       }
       if (action === 'delete-node') {
@@ -860,31 +966,37 @@ function App() {
           setShowCreateDecisionSpaceModal(true);
           return;
         }
-        const decisionSpaceIdForWrite = workspaceIdForWrite ? activeDecisionSpaceId : null;
-        const initialTitle = payload?.initialTitle ?? DEFAULT_TITLES.outcome;
-        const created = await api.createOutcome({
-          title: initialTitle,
-          workspaceId: workspaceIdForWrite,
-          teamId: legacyTeamIdForWrite,
-          decisionSpaceId: decisionSpaceIdForWrite
-        });
-        if (created) {
-          createdOutcome = {
-            ...created,
-            workspaceId: created.workspaceId ?? workspaceIdForWrite ?? null,
-            teamId: created.teamId ?? legacyTeamIdForWrite ?? null,
-            decisionSpaceId: created.decisionSpaceId ?? decisionSpaceIdForWrite ?? null,
-            opportunities: created.opportunities || []
-          };
-          setOutcomes((prev) => {
-            const filtered = (prev || []).filter((item) => item.id !== createdOutcome.id);
-            return [createdOutcome, ...filtered];
+        setIsCreatingOutcome(true);
+        try {
+          const decisionSpaceIdForWrite = workspaceIdForWrite ? activeDecisionSpaceId : null;
+          const initialTitle = payload?.initialTitle ?? DEFAULT_TITLES.outcome;
+          const created = await api.createOutcome({
+            title: initialTitle,
+            workspaceId: workspaceIdForWrite,
+            teamId: legacyTeamIdForWrite,
+            decisionSpaceId: decisionSpaceIdForWrite
           });
-        }
-        if (created?.id) {
-          const key = getNodeKey('outcome', created.id);
-          setSelectedKey(key);
-          setRenamingKey(key);
+          if (created) {
+            createdOutcome = {
+              ...created,
+              workspaceId: created.workspaceId ?? workspaceIdForWrite ?? null,
+              teamId: created.teamId ?? legacyTeamIdForWrite ?? null,
+              decisionSpaceId: created.decisionSpaceId ?? decisionSpaceIdForWrite ?? null,
+              opportunities: created.opportunities || []
+            };
+            const prev = dataCache.current.outcomes || [];
+            const next = [createdOutcome, ...prev.filter((item) => item.id !== createdOutcome.id)];
+            dataCache.current.outcomes = next;
+            dataCache.current.cacheTime = Date.now();
+            setOutcomes(next);
+          }
+          if (created?.id) {
+            const key = getNodeKey('outcome', created.id);
+            setSelectedKey(key);
+          }
+          shouldRefresh = false;
+        } finally {
+          setIsCreatingOutcome(false);
         }
       }
 
@@ -1017,6 +1129,7 @@ function App() {
       }
     } catch (error) {
       console.error('Failed to update board:', error);
+      setIsCreatingOutcome(false);
       alert(error.message || 'Failed to update board');
     }
   };
@@ -1065,6 +1178,18 @@ function App() {
     return (
       <div className="app">
         <div className="loading">Loading...</div>
+      </div>
+    );
+  }
+
+  if (isSettingUpWorkspace) {
+    return (
+      <div className="app app-setting-up">
+        <div className="setting-up-card">
+          <div className="setting-up-spinner" aria-hidden="true" />
+          <p className="setting-up-title">We&apos;re setting things up for you</p>
+          <p className="setting-up-subtitle">Creating your workspace and decision space…</p>
+        </div>
       </div>
     );
   }
@@ -1227,7 +1352,8 @@ function App() {
             ref={addOutcomeButtonRef}
             onCreate={() => handleBoardUpdate('add-outcome')}
             label="Outcome"
-            disabled={!activeDecisionSpaceId}
+            disabled={!workspaceIdForWrite}
+            creating={isCreatingOutcome}
           />
           <button className="top-button" type="button">Filters</button>
           <div className="help-menu-wrap">
@@ -1276,7 +1402,7 @@ function App() {
       )}
       <main className={`app-main ${isScrollPage ? 'app-main-scroll' : ''}`}>
         {currentPage === 'tree' && (
-          <TreeView 
+          <TreeView
             outcomes={outcomesForDecisionSpace}
             outcomesCount={outcomesForDecisionSpace.length}
             workspaceName={activeWorkspace?.name}
@@ -1284,6 +1410,7 @@ function App() {
             users={users}
             onUpdate={handleBoardUpdate}
             onAddOutcome={() => handleBoardUpdate('add-outcome')}
+            isCreatingOutcome={isCreatingOutcome}
           />
         )}
       </main>
@@ -1394,6 +1521,18 @@ function App() {
         onUpdate={handleBoardUpdate}
         addOutcomeButtonRef={addOutcomeButtonRef}
       />
+      {user && (
+        <FeedbackWidget
+          context={{
+            workspaceName: activeWorkspace?.name,
+            decisionSpaceName: activeDecisionSpace?.name,
+            url: typeof window !== 'undefined' ? window.location.href : '',
+            mode: treeStructure === 'journey' ? 'Journey' : 'Classic',
+            selectedNodeId: selectedKey || undefined
+          }}
+          onSendFeedback={api.sendFeedback}
+        />
+      )}
     </div>
   );
 }

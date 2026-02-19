@@ -183,15 +183,11 @@ export default {
   },
 
   createDecisionSpace: async (workspaceId, payload) => {
-    const { data, error } = await supabase
-      .from('decision_spaces')
-      .insert({
-        workspace_id: workspaceId,
-        name: payload.name,
-        description: payload.description || null
-      })
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('create_decision_space', {
+      p_workspace_id: workspaceId,
+      p_name: payload.name ?? 'Default',
+      p_description: payload.description ?? null
+    });
     if (error) handleError(error, 'Failed to create decision space');
     return data;
   },
@@ -202,6 +198,16 @@ export default {
       .order('created_at', { ascending: true });
     if (error) handleError(error, 'Failed to fetch workspaces');
     return data || [];
+  },
+
+  /** Creates a default personal workspace and "Default" decision space if the user has none. Call after signup or when workspace list is empty. */
+  createMyDefaultWorkspace: async () => {
+    const { data, error } = await supabase.rpc('create_my_default_workspace');
+    if (error) {
+      console.warn('create_my_default_workspace failed:', error);
+      throw error;
+    }
+    return data;
   },
 
   createWorkspace: async (payload) => {
@@ -602,9 +608,8 @@ export default {
     const updateData = {
       title: data.title,
       description: data.description ?? null,
-      status: data.status,
-      owner: data.owner,
-      visibility: data.visibility,
+      owner: (data.owner && String(data.owner).trim()) ? data.owner : null,
+      visibility: (data.visibility && String(data.visibility).trim()) ? data.visibility : undefined,
       start_date: data.startDate ?? null,
       end_date: data.endDate ?? null
     };
@@ -617,32 +622,15 @@ export default {
     if (Object.prototype.hasOwnProperty.call(data, 'decisionSpaceId')) {
       updateData.decision_space_id = data.decisionSpaceId ?? null;
     }
-    // Remove undefined values
+    // Remove undefined values (outcomes table has no status column)
     Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
-    
-    let result = await supabase
+
+    const result = await supabase
       .from('outcomes')
       .update(updateData)
       .eq('id', id)
       .select()
       .single();
-
-    if (result.error) {
-      const message = result.error.message || '';
-      const missingStatus =
-        result.error.code === 'PGRST204' &&
-        message.includes("Could not find the 'status' column");
-      if (missingStatus && Object.prototype.hasOwnProperty.call(updateData, 'status')) {
-        const retryData = { ...updateData };
-        delete retryData.status;
-        result = await supabase
-          .from('outcomes')
-          .update(retryData)
-          .eq('id', id)
-          .select()
-          .single();
-      }
-    }
 
     if (result.error) {
       console.error('Error updating outcome:', result.error);
@@ -1387,7 +1375,8 @@ export default {
         password: data.password,
         options: {
           data: {
-            name: data.name
+            name: data.name,
+            invite_code: data.inviteCode?.trim() || ''
           },
           emailRedirectTo: window.location.origin
         }
@@ -1395,7 +1384,6 @@ export default {
 
       if (authError) {
         console.error('Registration error:', authError);
-        // Check for abort/network errors
         if (authError.message?.includes('aborted') || authError.message?.includes('signal') || authError.name === 'AbortError') {
           throw new Error('Registration request was cancelled. Please check your connection and try again.');
         }
@@ -2457,6 +2445,46 @@ export default {
     });
 
     return results;
+  },
+
+  sendFeedback: async ({ message, includeContext, workspaceName, decisionSpaceName, url, mode, selectedNodeId } = {}) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('Not authenticated');
+    const raw = typeof window !== 'undefined' && window.__ENV__?.REACT_APP_API_URL != null
+      ? window.__ENV__.REACT_APP_API_URL
+      : process.env.REACT_APP_API_URL;
+    const base = (typeof raw === 'string' && raw.trim() && /^https?:\/\//i.test(raw.trim()))
+      ? raw.trim().replace(/\/$/, '')
+      : 'http://localhost:3010/api';
+    try {
+      const res = await fetch(`${base}/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          message: message?.trim() || '',
+          includeContext: !!includeContext,
+          workspaceName: workspaceName || undefined,
+          decisionSpaceName: decisionSpaceName || undefined,
+          url: url || undefined,
+          mode: mode || undefined,
+          selectedNodeId: selectedNodeId || undefined
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const msg = err?.error || (res.status === 503 ? 'Feedback service not configured. Add REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to server .env (same as client).' : `Request failed: ${res.status}`);
+        throw new Error(msg);
+      }
+      return res.json();
+    } catch (e) {
+      if (e instanceof TypeError && e.message === 'Failed to fetch') {
+        throw new Error('Cannot reach server. Is it running on ' + base + '?');
+      }
+      throw e;
+    }
   }
 };
 

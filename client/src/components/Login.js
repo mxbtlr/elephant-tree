@@ -8,7 +8,8 @@ function Login({ onLogin }) {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    inviteCode: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,10 +31,16 @@ function Login({ onLogin }) {
           setLoading(false);
           return;
         }
+        if (!formData.inviteCode?.trim()) {
+          setError('Invite code is required');
+          setLoading(false);
+          return;
+        }
         const result = await api.register({
           name: formData.name,
           email: formData.email,
-          password: formData.password
+          password: formData.password,
+          inviteCode: formData.inviteCode?.trim() || ''
         });
         
         // For self-hosted instances, wait a moment for profile creation
@@ -194,6 +201,18 @@ function Login({ onLogin }) {
               required
               className="form-input"
               minLength={6}
+            />
+          )}
+          {isRegister && (
+            <input
+              type="text"
+              name="inviteCode"
+              placeholder="Invite code"
+              value={formData.inviteCode}
+              onChange={handleChange}
+              required
+              className="form-input"
+              autoComplete="off"
             />
           )}
           {error && <div className="error-message">{error}</div>}

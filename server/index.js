@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -7,7 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3010;
 const DATA_FILE = path.join(__dirname, 'data.json');
 
 // Middleware
@@ -3142,6 +3143,115 @@ app.post('/api/integrations/:type/validate', authenticate, (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message || 'Invalid integration type or configuration' });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Feedback → Slack (Supabase JWT auth + user_feedback_threads for thread_ts)
+// Uses same URL and anon key as client (e.g. REACT_APP_SUPABASE_URL / REACT_APP_SUPABASE_ANON_KEY).
+// DB requests use the user's JWT so RLS applies; no service_role needed.
+// ---------------------------------------------------------------------------
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
+const SLACK_FEEDBACK_WEBHOOK_URL = process.env.SLACK_FEEDBACK_WEBHOOK_URL;
+
+let supabaseFeedbackAuth = null;
+if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+  try {
+    supabaseFeedbackAuth = require('@supabase/supabase-js').createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('Feedback: Supabase configured (same URL/anon key as client)');
+  } catch (e) {
+    console.warn('Feedback: Supabase client not available:', e.message);
+  }
+} else {
+  console.warn('Feedback: Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY (or SUPABASE_*) in server .env to enable feedback.');
+}
+
+app.post('/api/feedback', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const { message, includeContext, workspaceName, decisionSpaceName, url, mode, selectedNodeId } = req.body || {};
+  const trimmed = typeof message === 'string' ? message.trim() : '';
+  if (!trimmed) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+
+  if (!supabaseFeedbackAuth) {
+    return res.status(503).json({ error: 'Feedback service not configured' });
+  }
+  const { data: { user }, error } = await supabaseFeedbackAuth.auth.getUser(token);
+  if (error || !user) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+
+  const email = user?.email || 'unknown';
+  const userId = user?.id || null;
+
+  const contextLines = [];
+  if (includeContext) {
+    contextLines.push(`User: ${email}`);
+    if (workspaceName) contextLines.push(`Workspace: ${workspaceName}`);
+    if (decisionSpaceName) contextLines.push(`Decision Space: ${decisionSpaceName}`);
+    if (mode) contextLines.push(`Mode: ${mode}`);
+    if (url) contextLines.push(`URL: ${url}`);
+    if (selectedNodeId) contextLines.push(`Selected node: ${selectedNodeId}`);
+  }
+
+  const headerBlock = contextLines.length ? [
+    '--------------------------------',
+    '🧠 New TreeFlow Feedback',
+    ...contextLines,
+    '--------------------------------',
+    'Message:',
+    trimmed,
+    '--------------------------------'
+  ].join('\n') : `🧠 New TreeFlow Feedback\n\n${trimmed}`;
+
+  const supabaseAsUser = require('@supabase/supabase-js').createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } }
+  });
+
+  let threadTs = null;
+  if (userId) {
+    const { data: row } = await supabaseAsUser
+      .from('user_feedback_threads')
+      .select('slack_thread_ts')
+      .eq('user_id', userId)
+      .maybeSingle();
+    threadTs = row?.slack_thread_ts || null;
+  }
+
+  if (!SLACK_FEEDBACK_WEBHOOK_URL) {
+    console.warn('Feedback: SLACK_FEEDBACK_WEBHOOK_URL not set; skipping Slack post');
+    return res.json({ ok: true });
+  }
+
+  const slackPayload = { text: headerBlock };
+  if (threadTs) slackPayload.thread_ts = threadTs;
+
+  try {
+    const slackRes = await require('axios').post(SLACK_FEEDBACK_WEBHOOK_URL, slackPayload, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 10000
+    });
+    const responseBody = slackRes.data;
+    const newTs = typeof responseBody === 'object' && responseBody && responseBody.ts
+      ? responseBody.ts
+      : (typeof responseBody === 'string' && responseBody !== 'ok' ? null : null);
+    if (userId && newTs && !threadTs) {
+      await supabaseAsUser.from('user_feedback_threads').upsert({
+        user_id: userId,
+        slack_thread_ts: newTs,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+    }
+  } catch (err) {
+    console.error('Feedback: Slack webhook failed:', err.message || err);
+  }
+
+  return res.json({ ok: true });
 });
 
 // Health check (for load balancers and deployment)

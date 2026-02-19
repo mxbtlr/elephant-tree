@@ -6,7 +6,7 @@ import { buildOstForest } from '../../lib/ostTree';
 import { useOstStore } from '../../store/useOstStore';
 import './ListMode.css';
 
-function ListModeView({ outcomes, onUpdate, confidenceMap, onAddOutcome }) {
+function ListModeView({ outcomes, onUpdate, confidenceMap, onAddOutcome, isCreatingOutcome = false }) {
   const {
     state: { collapsed, selectedKey, nodeOverrides, renamingKey },
     actions: { setSelectedKey, toggleCollapse, setRenamingKey }
@@ -22,8 +22,8 @@ function ListModeView({ outcomes, onUpdate, confidenceMap, onAddOutcome }) {
       {!forest ? (
         <div className="empty-state compact">
           <p>This Decision Space has no Outcomes yet.</p>
-          <button type="button" className="tree-empty-cta" onClick={onAddOutcome}>
-            Add first Outcome
+          <button type="button" className="tree-empty-cta" onClick={onAddOutcome} disabled={isCreatingOutcome}>
+            {isCreatingOutcome ? 'Creating…' : 'Add first Outcome'}
           </button>
         </div>
       ) : (

@@ -8,7 +8,7 @@ import { allowedChildren, parseNodeKey } from '../lib/ostTypes';
 import { computeConfidenceMap } from '../lib/confidence/recompute';
 import { useOstStore } from '../store/useOstStore';
 
-function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, onUpdate, onAddOutcome, users }) {
+function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, onUpdate, onAddOutcome, users, isCreatingOutcome = false }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const {
     state: { viewMode, treeStructure, layoutUnlocked, nodeOverrides, selectedKey, evidenceByTest },
@@ -106,6 +106,7 @@ function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, o
             users={users}
             confidenceMap={confidenceMap}
             onAddOutcome={onAddOutcome}
+            isCreatingOutcome={isCreatingOutcome}
           />
         ) : (
           <ListModeView
@@ -113,6 +114,7 @@ function TreeView({ outcomes, outcomesCount, workspaceName, decisionSpaceName, o
             onUpdate={onUpdate}
             confidenceMap={confidenceMap}
             onAddOutcome={onAddOutcome}
+            isCreatingOutcome={isCreatingOutcome}
           />
         )}
       </div>

@@ -2,9 +2,36 @@
 
 Since you're using a self-hosted Supabase instance, authentication configuration is different from the hosted version.
 
-## Quick Fix: Disable Email Confirmation
+**TreeFlow does not use email confirmation.** Signup is gated by an invite code only; users can sign in immediately after registering. To make that work you need both: (1) Auth configured so it does not send confirmation emails, and (2) the SQL trigger that sets `email_confirmed_at` (migration 004).
 
-### Option 1: Via SQL (Recommended)
+## 1. Auth: Do not send confirmation email (required)
+
+If this is not set, signup will fail with "Error sending confirmation email" when SMTP is not configured.
+
+### Where to set it
+
+**If you use the official [Supabase self-hosted Docker](https://github.com/supabase/supabase/tree/master/docker) setup:**
+
+1. Open the **`.env`** file in the same folder as `docker-compose.yml` (e.g. `supabase/docker/.env` or wherever you keep your Supabase stack).
+2. Add or edit:
+   ```env
+   ENABLE_EMAIL_AUTOCONFIRM=false
+   ```
+   The compose file passes this into the auth service as `GOTRUE_MAILER_AUTOCONFIRM`.
+3. Restart the auth container:
+   ```bash
+   docker compose restart auth
+   ```
+
+**If you configure the Auth (GoTrue) container yourself** (custom compose or Kubernetes):
+
+- Set the auth container env var **`GOTRUE_MAILER_AUTOCONFIRM=false`** (e.g. in your `docker-compose.yml` under `services.auth.environment`, or in your pod/deployment env). Then restart the auth service.
+
+With this, GoTrue will not send or require a confirmation email.
+
+## 2. Database: Auto-confirm users (migration 004)
+
+### Option 1: Via SQL
 
 Run this in your Supabase SQL Editor:
 
@@ -35,18 +62,7 @@ Or run the migration file:
 supabase/migrations/004_disable_email_confirmation.sql
 ```
 
-### Option 2: Via Environment Variables
-
-If you have access to your Supabase server configuration:
-
-1. Find your Supabase `.env` file or configuration
-2. Add or update:
-   ```env
-   ENABLE_EMAIL_CONFIRMATIONS=false
-   ```
-3. Restart Supabase services
-
-### Option 3: Via Kong/API Gateway Config
+### Option 2: Via Kong/API Gateway Config
 
 If you're using Kong as the API gateway:
 

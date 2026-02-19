@@ -17,7 +17,7 @@ const groupOutcomes = (outcomes) => {
   return grouped;
 };
 
-function TreeModeView({ outcomes, treeStructure = 'classic', onUpdate, users, confidenceMap, onAddOutcome }) {
+function TreeModeView({ outcomes, treeStructure = 'classic', onUpdate, users, confidenceMap, onAddOutcome, isCreatingOutcome = false }) {
   return (
     <div className="tree-mode-view">
       <TreeCanvas
@@ -27,6 +27,7 @@ function TreeModeView({ outcomes, treeStructure = 'classic', onUpdate, users, co
         users={users}
         confidenceMap={confidenceMap}
         onAddOutcome={onAddOutcome}
+        isCreatingOutcome={isCreatingOutcome}
       />
     </div>
   );
