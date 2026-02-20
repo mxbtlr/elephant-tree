@@ -1,0 +1,39 @@
+.cookie-banner {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  max-width: min(420px, calc(100vw - 32px));
+  background: var(--treeflow-card);
+  border: 1px solid var(--treeflow-border);
+  border-radius: 12px;
+  box-shadow: var(--treeflow-shadow-hover);
+  z-index: 9999;
+}
+
+.cookie-banner-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--treeflow-text);
+  line-height: 1.4;
+}
+
+.cookie-banner-accept {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--treeflow-primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cookie-banner-accept:hover {
+  background: var(--treeflow-primary-dark);
+}

@@ -4,6 +4,8 @@ import TreeView from './components/TreeView';
 import AddOutcomeButton from './components/AddOutcomeButton';
 import OnboardingFlow, { getOnboardingCompleted, setOnboardingCompleted, shouldShowOnboarding } from './components/OnboardingFlow';
 import FeedbackWidget from './components/FeedbackWidget';
+import CookieBanner from './components/CookieBanner';
+import BetaWelcomePopup from './components/BetaWelcomePopup';
 import WorkspaceMembersModal from './components/WorkspaceMembersModal';
 import CreateTeamWorkspaceModal from './components/CreateTeamWorkspaceModal';
 import CreateDecisionSpaceModal from './components/CreateDecisionSpaceModal';
@@ -1533,6 +1535,8 @@ function App() {
           onSendFeedback={api.sendFeedback}
         />
       )}
+      <CookieBanner />
+      <BetaWelcomePopup user={user} hideWhenOnboardingOpen={showOnboarding} />
     </div>
   );
 }

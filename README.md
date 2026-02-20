@@ -1,6 +1,6 @@
-# TreeFlow — Opportunity Solutions Tree
+# TreeFlow
 
-A collaborative web app for managing Opportunity Solutions Trees: outcomes, opportunities, solutions, tests, and todos in a hierarchical tree with workspaces and Supabase backend.
+A collaborative web app for managing outcome and decision trees: outcomes, opportunities, solutions, tests, and todos in a hierarchical tree with workspaces and Supabase backend.
 
 ## Quick start
 

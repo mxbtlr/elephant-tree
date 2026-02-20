@@ -2,7 +2,7 @@
 
 ## Overview
 
-The OST application now supports team-based grouping and sharing of Opportunity Solutions Trees. Outcomes can be assigned to teams, and users can filter and view outcomes by team.
+TreeFlow supports team-based grouping and sharing of decision trees. Outcomes can be assigned to teams, and users can filter and view outcomes by team.
 
 ## Key Features
 

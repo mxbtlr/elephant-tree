@@ -2,7 +2,7 @@
 
 ## Overview
 
-The OST application now supports team-based collaboration. Teams allow multiple users to work together on shared Opportunity Solutions Trees with role-based permissions.
+TreeFlow supports team-based collaboration. Teams allow multiple users to work together on shared decision trees with role-based permissions.
 
 ## Team Roles
 

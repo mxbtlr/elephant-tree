@@ -1,0 +1,47 @@
+.beta-welcome-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.4);
+  z-index: 10000;
+}
+
+.beta-welcome-card {
+  margin: 16px;
+  padding: 28px 32px;
+  max-width: 400px;
+  background: var(--treeflow-card);
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px var(--treeflow-border);
+}
+
+.beta-welcome-title {
+  margin: 0 0 12px 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--treeflow-text);
+}
+
+.beta-welcome-body {
+  margin: 0 0 24px 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--treeflow-text-light);
+}
+
+.beta-welcome-cta {
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--treeflow-primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.beta-welcome-cta:hover {
+  background: var(--treeflow-primary-dark);
+}

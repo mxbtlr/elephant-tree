@@ -1,7 +1,7 @@
 {
   "name": "opportunity-solutions-tree",
   "version": "1.0.0",
-  "description": "WebApp for managing Opportunity Solutions Tree",
+  "description": "TreeFlow – Outcome and decision tree management",
   "main": "server/index.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",

@@ -1,7 +1,7 @@
 {
   "name": "ost-server",
   "version": "1.0.0",
-  "description": "Backend server for Opportunity Solutions Tree",
+  "description": "TreeFlow – Backend server",
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",

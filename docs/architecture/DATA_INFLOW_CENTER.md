@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Data Inflow Center is a sophisticated system for aggregating metrics and insights from multiple data sources and linking them to tests in your Opportunity Solutions Tree. This allows you to track real-world data from various platforms and connect it directly to your test hypotheses.
+The Data Inflow Center is a sophisticated system for aggregating metrics and insights from multiple data sources and linking them to tests in your TreeFlow decision tree. This allows you to track real-world data from various platforms and connect it directly to your test hypotheses.
 
 ## Features
 
