@@ -1523,6 +1523,17 @@ export default {
     if (error) handleError(error, 'Failed to logout');
   },
 
+  requestPasswordReset: async (email) => {
+    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/` : '';
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) handleError(error, error.message || 'Failed to send reset email');
+  },
+
+  updatePassword: async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) handleError(error, error.message || 'Failed to update password');
+  },
+
   getCurrentUser: async () => {
     if (getCurrentUserPromise) return getCurrentUserPromise;
 

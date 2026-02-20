@@ -4,6 +4,7 @@ import './Login.css';
 
 function Login({ onLogin }) {
   const [isRegister, setIsRegister] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -13,6 +14,7 @@ function Login({ onLogin }) {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -141,6 +143,68 @@ function Login({ onLogin }) {
     });
   };
 
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await api.requestPasswordReset(formData.email);
+      setForgotPasswordSent(true);
+    } catch (err) {
+      setError(err.message || 'Failed to send reset email');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (showForgotPassword) {
+    return (
+      <div className="login-container">
+        <div className="login-card">
+          <h1>TreeFlow</h1>
+          <h2 className="login-subtitle">Reset password</h2>
+          {forgotPasswordSent ? (
+            <>
+              <p className="forgot-success-message">
+                Check your email for a link to reset your password. If you don&apos;t see it, check spam.
+              </p>
+              <button
+                type="button"
+                className="btn-primary btn-block"
+                onClick={() => { setShowForgotPassword(false); setForgotPasswordSent(false); }}
+              >
+                Back to login
+              </button>
+            </>
+          ) : (
+            <form onSubmit={handleForgotSubmit}>
+              <input
+                type="email"
+                name="email"
+                placeholder="Email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                className="form-input"
+              />
+              {error && <div className="error-message">{error}</div>}
+              <button type="submit" className="btn-primary" disabled={loading}>
+                {loading ? <span><span className="spinner"></span> Sending…</span> : 'Send reset link'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-block login-back"
+                onClick={() => { setShowForgotPassword(false); setError(''); }}
+              >
+                Back to login
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="login-container">
       <div className="login-card">
@@ -225,6 +289,15 @@ function Login({ onLogin }) {
               isRegister ? 'Register' : 'Login'
             )}
           </button>
+          {!isRegister && (
+            <button
+              type="button"
+              className="login-forgot-link"
+              onClick={() => setShowForgotPassword(true)}
+            >
+              Forgot password?
+            </button>
+          )}
         </form>
       </div>
     </div>

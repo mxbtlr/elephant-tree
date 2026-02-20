@@ -6,6 +6,7 @@ import OnboardingFlow, { getOnboardingCompleted, setOnboardingCompleted, shouldS
 import FeedbackWidget from './components/FeedbackWidget';
 import CookieBanner from './components/CookieBanner';
 import BetaWelcomePopup from './components/BetaWelcomePopup';
+import SetPasswordForm from './components/SetPasswordForm';
 import WorkspaceMembersModal from './components/WorkspaceMembersModal';
 import CreateTeamWorkspaceModal from './components/CreateTeamWorkspaceModal';
 import CreateDecisionSpaceModal from './components/CreateDecisionSpaceModal';
@@ -46,6 +47,15 @@ function App() {
   const [showHelpMenu, setShowHelpMenu] = useState(false);
   const [isSettingUpWorkspace, setIsSettingUpWorkspace] = useState(false);
   const [isCreatingOutcome, setIsCreatingOutcome] = useState(false);
+  const [isRecovery, setIsRecovery] = useState(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      if (window.location.hash.includes('type=recovery')) return true;
+      return new URLSearchParams(window.location.search).get('type') === 'recovery';
+    } catch {
+      return false;
+    }
+  });
   const addOutcomeButtonRef = useRef(null);
   const [isTodoOpen, setIsTodoOpen] = useState(() => {
     try {
@@ -1171,6 +1181,10 @@ function App() {
     const forest = buildOstForest(outcomesForDecisionSpace || [], nodeOverrides || {}, { treeStructure });
     return Object.values(forest.nodesByKey || {});
   }, [outcomesForDecisionSpace, nodeOverrides, treeStructure]);
+
+  if (!authInitializing && user && isRecovery) {
+    return <SetPasswordForm onDone={() => setIsRecovery(false)} />;
+  }
 
   if (!user && !authInitializing) {
     return <Login onLogin={handleLogin} />;
